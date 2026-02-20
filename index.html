@@ -4,11 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sports Degrees</title>
-    
-    <!-- Tailwind CDN (exactly as you had it) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
     <script>
       tailwind.config = {
         theme: {
@@ -17,42 +14,19 @@
               sans: ['Inter', 'sans-serif'],
             },
             colors: {
-              nfl: {
-                primary: '#013369',
-                secondary: '#D50A0A',
-                accent: '#A5ACAF',
-              },
-              mlb: {
-                primary: '#002D62',
-                secondary: '#BE0F34',
-                accent: '#FFFFFF',
-              }
+              nfl: { primary: '#013369', secondary: '#D50A0A', accent: '#A5ACAF' },
+              mlb: { primary: '#002D62', secondary: '#BE0F34', accent: '#FFFFFF' }
             }
           },
         },
       }
     </script>
-
     <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #020617;
-      }
-      /* Custom scrollbar for better aesthetics */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #0f172a; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155; 
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
-      }
+      body { font-family: 'Inter', sans-serif; background-color: #020617; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #0f172a; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
   </head>
   <body>

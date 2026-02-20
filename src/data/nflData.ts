@@ -1,0 +1,161 @@
+
+import { PlayerHistory } from './nflData';
+
+export const NFL_PLAYERS: Record<string, PlayerHistory> = {
+  "Tom Brady": { teams: [{ name: "New England Patriots", start: 2000, end: 2019 }, { name: "Tampa Bay Buccaneers", start: 2020, end: 2022 }] },
+  "Rob Gronkowski": { teams: [{ name: "New England Patriots", start: 2010, end: 2018 }, { name: "Tampa Bay Buccaneers", start: 2020, end: 2021 }] },
+  "Julian Edelman": { teams: [{ name: "New England Patriots", start: 2009, end: 2020 }] },
+  "Randy Moss": { teams: [{ name: "Minnesota Vikings", start: 1998, end: 2004 }, { name: "Oakland Raiders", start: 2005, end: 2006 }, { name: "New England Patriots", start: 2007, end: 2010 }, { name: "Tennessee Titans", start: 2010, end: 2010 }, { name: "Minnesota Vikings", start: 2010, end: 2010 }, { name: "San Francisco 49ers", start: 2012, end: 2012 }] },
+  "Jerry Rice": { teams: [{ name: "San Francisco 49ers", start: 1985, end: 2000 }, { name: "Oakland Raiders", start: 2001, end: 2004 }, { name: "Seattle Seahawks", start: 2004, end: 2004 }] },
+  "Joe Montana": { teams: [{ name: "San Francisco 49ers", start: 1979, end: 1992 }, { name: "Kansas City Chiefs", start: 1993, end: 1994 }] },
+  "Steve Young": { teams: [{ name: "Tampa Bay Buccaneers", start: 1985, end: 1986 }, { name: "San Francisco 49ers", start: 1987, end: 1999 }] },
+  "Brett Favre": { teams: [{ name: "Atlanta Falcons", start: 1991, end: 1991 }, { name: "Green Bay Packers", start: 1992, end: 2007 }, { name: "New York Jets", start: 2008, end: 2008 }, { name: "Minnesota Vikings", start: 2009, end: 2010 }] },
+  "Aaron Rodgers": { teams: [{ name: "Green Bay Packers", start: 2005, end: 2022 }, { name: "New York Jets", start: 2023, end: 2024 }] },
+  "Davante Adams": { teams: [{ name: "Green Bay Packers", start: 2014, end: 2021 }, { name: "Las Vegas Raiders", start: 2022, end: 2024 }] },
+  "Peyton Manning": { teams: [{ name: "Indianapolis Colts", start: 1998, end: 2011 }, { name: "Denver Broncos", start: 2012, end: 2015 }] },
+  "Eli Manning": { teams: [{ name: "New York Giants", start: 2004, end: 2019 }] },
+  "Drew Brees": { teams: [{ name: "San Diego Chargers", start: 2001, end: 2005 }, { name: "New Orleans Saints", start: 2006, end: 2020 }] },
+  "Philip Rivers": { teams: [{ name: "San Diego Chargers", start: 2004, end: 2019 }, { name: "Indianapolis Colts", start: 2020, end: 2020 }] },
+  "LaDainian Tomlinson": { teams: [{ name: "San Diego Chargers", start: 2001, end: 2009 }, { name: "New York Jets", start: 2010, end: 2011 }] },
+  "Adrian Peterson": { teams: [{ name: "Minnesota Vikings", start: 2007, end: 2016 }, { name: "New Orleans Saints", start: 2017, end: 2017 }, { name: "Arizona Cardinals", start: 2017, end: 2017 }, { name: "Washington Redskins", start: 2018, end: 2019 }, { name: "Detroit Lions", start: 2020, end: 2020 }, { name: "Tennessee Titans", start: 2021, end: 2021 }, { name: "Seattle Seahawks", start: 2021, end: 2021 }] },
+  "Marshawn Lynch": { teams: [{ name: "Buffalo Bills", start: 2007, end: 2010 }, { name: "Seattle Seahawks", start: 2010, end: 2015 }, { name: "Oakland Raiders", start: 2017, end: 2018 }, { name: "Seattle Seahawks", start: 2019, end: 2019 }] },
+  "Russell Wilson": { teams: [{ name: "Seattle Seahawks", start: 2012, end: 2021 }, { name: "Denver Broncos", start: 2022, end: 2023 }, { name: "Pittsburgh Steelers", start: 2024, end: 2024 }] },
+  "Richard Sherman": { teams: [{ name: "Seattle Seahawks", start: 2011, end: 2017 }, { name: "San Francisco 49ers", start: 2018, end: 2020 }, { name: "Tampa Bay Buccaneers", start: 2021, end: 2021 }] },
+  "Matthew Stafford": { teams: [{ name: "Detroit Lions", start: 2009, end: 2020 }, { name: "Los Angeles Rams", start: 2021, end: 2024 }] },
+  "Calvin Johnson": { teams: [{ name: "Detroit Lions", start: 2007, end: 2015 }] },
+  "Barry Sanders": { teams: [{ name: "Detroit Lions", start: 1989, end: 1998 }] },
+  "Patrick Mahomes": { teams: [{ name: "Kansas City Chiefs", start: 2017, end: 2024 }] },
+  "Travis Kelce": { teams: [{ name: "Kansas City Chiefs", start: 2013, end: 2024 }] },
+  "Tyreek Hill": { teams: [{ name: "Kansas City Chiefs", start: 2016, end: 2021 }, { name: "Miami Dolphins", start: 2022, end: 2024 }] },
+  "Von Miller": { teams: [{ name: "Denver Broncos", start: 2011, end: 2021 }, { name: "Los Angeles Rams", start: 2021, end: 2021 }, { name: "Buffalo Bills", start: 2022, end: 2024 }] },
+  "Odell Beckham Jr.": { teams: [{ name: "New York Giants", start: 2014, end: 2018 }, { name: "Cleveland Browns", start: 2019, end: 2021 }, { name: "Los Angeles Rams", start: 2021, end: 2021 }, { name: "Baltimore Ravens", start: 2023, end: 2023 }] },
+  "Baker Mayfield": { teams: [{ name: "Cleveland Browns", start: 2018, end: 2021 }, { name: "Carolina Panthers", start: 2022, end: 2022 }, { name: "Los Angeles Rams", start: 2022, end: 2022 }, { name: "Tampa Bay Buccaneers", start: 2023, end: 2024 }] },
+  "Christian McCaffrey": { teams: [{ name: "Carolina Panthers", start: 2017, end: 2022 }, { name: "San Francisco 49ers", start: 2022, end: 2024 }] },
+  "Cam Newton": { teams: [{ name: "Carolina Panthers", start: 2011, end: 2019 }, { name: "New England Patriots", start: 2020, end: 2020 }, { name: "Carolina Panthers", start: 2021, end: 2021 }] },
+  "Kurt Warner": { teams: [{ name: "St. Louis Rams", start: 1998, end: 2003 }, { name: "New York Giants", start: 2004, end: 2004 }, { name: "Arizona Cardinals", start: 2005, end: 2009 }] },
+  "Larry Fitzgerald": { teams: [{ name: "Arizona Cardinals", start: 2004, end: 2020 }] },
+  "Anquan Boldin": { teams: [{ name: "Arizona Cardinals", start: 2003, end: 2009 }, { name: "Baltimore Ravens", start: 2010, end: 2012 }, { name: "San Francisco 49ers", start: 2013, end: 2015 }, { name: "Detroit Lions", start: 2016, end: 2016 }] },
+  "Ray Lewis": { teams: [{ name: "Baltimore Ravens", start: 1996, end: 2012 }] },
+  "Ed Reed": { teams: [{ name: "Baltimore Ravens", start: 2002, end: 2012 }, { name: "Houston Texans", start: 2013, end: 2013 }, { name: "New York Jets", start: 2013, end: 2013 }] },
+  "J.J. Watt": { teams: [{ name: "Houston Texans", start: 2011, end: 2020 }, { name: "Arizona Cardinals", start: 2021, end: 2022 }] },
+  "Andre Johnson": { teams: [{ name: "Houston Texans", start: 2003, end: 2014 }, { name: "Indianapolis Colts", start: 2015, end: 2015 }, { name: "Tennessee Titans", start: 2016, end: 2016 }] },
+  "DeAndre Hopkins": { teams: [{ name: "Houston Texans", start: 2013, end: 2019 }, { name: "Arizona Cardinals", start: 2020, end: 2022 }, { name: "Tennessee Titans", start: 2023, end: 2024 }] },
+  "Stefon Diggs": { teams: [{ name: "Minnesota Vikings", start: 2015, end: 2019 }, { name: "Buffalo Bills", start: 2020, end: 2023 }, { name: "Houston Texans", start: 2024, end: 2024 }] },
+  "Josh Allen": { teams: [{ name: "Buffalo Bills", start: 2018, end: 2024 }] },
+  "Kirk Cousins": { teams: [{ name: "Washington Redskins", start: 2012, end: 2017 }, { name: "Minnesota Vikings", start: 2018, end: 2023 }, { name: "Atlanta Falcons", start: 2024, end: 2024 }] },
+  "Matt Ryan": { teams: [{ name: "Atlanta Falcons", start: 2008, end: 2021 }, { name: "Indianapolis Colts", start: 2022, end: 2022 }] },
+  "Julio Jones": { teams: [{ name: "Atlanta Falcons", start: 2011, end: 2020 }, { name: "Tennessee Titans", start: 2021, end: 2021 }, { name: "Tampa Bay Buccaneers", start: 2022, end: 2022 }, { name: "Philadelphia Eagles", start: 2023, end: 2023 }] },
+  "A.J. Brown": { teams: [{ name: "Tennessee Titans", start: 2019, end: 2021 }, { name: "Philadelphia Eagles", start: 2022, end: 2024 }] },
+  "Jalen Hurts": { teams: [{ name: "Philadelphia Eagles", start: 2020, end: 2024 }] },
+  "Jason Kelce": { teams: [{ name: "Philadelphia Eagles", start: 2011, end: 2023 }] },
+  "Carson Wentz": { teams: [{ name: "Philadelphia Eagles", start: 2016, end: 2020 }, { name: "Indianapolis Colts", start: 2021, end: 2021 }, { name: "Washington Commanders", start: 2022, end: 2022 }, { name: "Los Angeles Rams", start: 2023, end: 2023 }] },
+  "Nick Foles": { teams: [{ name: "Philadelphia Eagles", start: 2012, end: 2014 }, { name: "St. Louis Rams", start: 2015, end: 2015 }, { name: "Kansas City Chiefs", start: 2016, end: 2016 }, { name: "Philadelphia Eagles", start: 2017, end: 2018 }, { name: "Jacksonville Jaguars", start: 2019, end: 2019 }, { name: "Chicago Bears", start: 2020, end: 2021 }, { name: "Indianapolis Colts", start: 2022, end: 2022 }] },
+  "Khalil Mack": { teams: [{ name: "Oakland Raiders", start: 2014, end: 2017 }, { name: "Chicago Bears", start: 2018, end: 2021 }, { name: "Los Angeles Chargers", start: 2022, end: 2024 }] },
+  "Justin Herbert": { teams: [{ name: "Los Angeles Chargers", start: 2020, end: 2024 }] },
+  "Dan Marino": { teams: [{ name: "Miami Dolphins", start: 1983, end: 1999 }] },
+  "John Elway": { teams: [{ name: "Denver Broncos", start: 1983, end: 1998 }] },
+  "Terrell Davis": { teams: [{ name: "Denver Broncos", start: 1995, end: 2001 }] },
+  "Shannon Sharpe": { teams: [{ name: "Denver Broncos", start: 1990, end: 1999 }, { name: "Baltimore Ravens", start: 2000, end: 2001 }, { name: "Denver Broncos", start: 2002, end: 2003 }] },
+  "Deion Sanders": { teams: [{ name: "Atlanta Falcons", start: 1989, end: 1993 }, { name: "San Francisco 49ers", start: 1994, end: 1994 }, { name: "Dallas Cowboys", start: 1995, end: 1999 }, { name: "Washington Redskins", start: 2000, end: 2000 }, { name: "Baltimore Ravens", start: 2004, end: 2005 }] },
+  "Emmitt Smith": { teams: [{ name: "Dallas Cowboys", start: 1990, end: 2002 }, { name: "Arizona Cardinals", start: 2003, end: 2004 }] },
+  "Troy Aikman": { teams: [{ name: "Dallas Cowboys", start: 1989, end: 2000 }] },
+  "Michael Irvin": { teams: [{ name: "Dallas Cowboys", start: 1988, end: 1999 }] },
+  "Reggie White": { teams: [{ name: "Philadelphia Eagles", start: 1985, end: 1992 }, { name: "Green Bay Packers", start: 1993, end: 1998 }, { name: "Carolina Panthers", start: 2000, end: 2000 }] },
+  "Lawrence Taylor": { teams: [{ name: "New York Giants", start: 1981, end: 1993 }] },
+  "Walter Payton": { teams: [{ name: "Chicago Bears", start: 1975, end: 1987 }] },
+  "Joe Namath": { teams: [{ name: "New York Jets", start: 1965, end: 1976 }, { name: "Los Angeles Rams", start: 1977, end: 1977 }] },
+  "Terry Bradshaw": { teams: [{ name: "Pittsburgh Steelers", start: 1970, end: 1983 }] },
+  "Franco Harris": { teams: [{ name: "Pittsburgh Steelers", start: 1972, end: 1983 }, { name: "Seattle Seahawks", start: 1984, end: 1984 }] },
+  "Mean Joe Greene": { teams: [{ name: "Pittsburgh Steelers", start: 1969, end: 1981 }] },
+  "Jim Brown": { teams: [{ name: "Cleveland Browns", start: 1957, end: 1965 }] },
+  "Johnny Unitas": { teams: [{ name: "Baltimore Colts", start: 1956, end: 1972 }, { name: "San Diego Chargers", start: 1973, end: 1973 }] },
+  "Bart Starr": { teams: [{ name: "Green Bay Packers", start: 1956, end: 1971 }] },
+  "Dick Butkus": { teams: [{ name: "Chicago Bears", start: 1965, end: 1973 }] },
+  "Gale Sayers": { teams: [{ name: "Chicago Bears", start: 1965, end: 1971 }] },
+  "O.J. Simpson": { teams: [{ name: "Buffalo Bills", start: 1969, end: 1977 }, { name: "San Francisco 49ers", start: 1978, end: 1979 }] },
+  "Earl Campbell": { teams: [{ name: "Houston Oilers", start: 1978, end: 1984 }, { name: "New Orleans Saints", start: 1984, end: 1985 }] },
+  "Eric Dickerson": { teams: [{ name: "Los Angeles Rams", start: 1983, end: 1987 }, { name: "Indianapolis Colts", start: 1987, end: 1991 }, { name: "Los Angeles Raiders", start: 1992, end: 1992 }, { name: "Atlanta Falcons", start: 1993, end: 1993 }] },
+  "Marcus Allen": { teams: [{ name: "Los Angeles Raiders", start: 1982, end: 1992 }, { name: "Kansas City Chiefs", start: 1993, end: 1997 }] },
+  "Bo Jackson": { teams: [{ name: "Los Angeles Raiders", start: 1987, end: 1990 }] },
+  "Howie Long": { teams: [{ name: "Oakland Raiders", start: 1981, end: 1993 }] },
+  "Ronnie Lott": { teams: [{ name: "San Francisco 49ers", start: 1981, end: 1990 }, { name: "Los Angeles Raiders", start: 1991, end: 1992 }, { name: "New York Jets", start: 1993, end: 1994 }] },
+  "Charles Woodson": { teams: [{ name: "Oakland Raiders", start: 1998, end: 2005 }, { name: "Green Bay Packers", start: 2006, end: 2012 }, { name: "Oakland Raiders", start: 2013, end: 2015 }] },
+  "Champ Bailey": { teams: [{ name: "Washington Redskins", start: 1999, end: 2003 }, { name: "Denver Broncos", start: 2004, end: 2013 }] },
+  "Darrelle Revis": { teams: [{ name: "New York Jets", start: 2007, end: 2012 }, { name: "Tampa Bay Buccaneers", start: 2013, end: 2013 }, { name: "New England Patriots", start: 2014, end: 2014 }, { name: "New York Jets", start: 2015, end: 2016 }, { name: "Kansas City Chiefs", start: 2017, end: 2017 }] },
+  "Antonio Brown": { teams: [{ name: "Pittsburgh Steelers", start: 2010, end: 2018 }, { name: "New England Patriots", start: 2019, end: 2019 }, { name: "Tampa Bay Buccaneers", start: 2020, end: 2021 }] },
+  "Le'Veon Bell": { teams: [{ name: "Pittsburgh Steelers", start: 2013, end: 2017 }, { name: "New York Jets", start: 2019, end: 2020 }, { name: "Kansas City Chiefs", start: 2020, end: 2020 }, { name: "Baltimore Ravens", start: 2021, end: 2021 }, { name: "Tampa Bay Buccaneers", start: 2021, end: 2021 }] },
+  "Ben Roethlisberger": { teams: [{ name: "Pittsburgh Steelers", start: 2004, end: 2021 }] },
+  "Hines Ward": { teams: [{ name: "Pittsburgh Steelers", start: 1998, end: 2011 }] },
+  "Troy Polamalu": { teams: [{ name: "Pittsburgh Steelers", start: 2003, end: 2014 }] },
+  "Jerome Bettis": { teams: [{ name: "Los Angeles Rams", start: 1993, end: 1995 }, { name: "Pittsburgh Steelers", start: 1996, end: 2005 }] },
+  "LaMarr Woodley": { teams: [{ name: "Pittsburgh Steelers", start: 2007, end: 2013 }, { name: "Oakland Raiders", start: 2014, end: 2014 }, { name: "Arizona Cardinals", start: 2015, end: 2015 }] },
+  "James Harrison": { teams: [{ name: "Pittsburgh Steelers", start: 2002, end: 2012 }, { name: "Cincinnati Bengals", start: 2013, end: 2013 }, { name: "Pittsburgh Steelers", start: 2014, end: 2017 }, { name: "New England Patriots", start: 2017, end: 2017 }] }
+};
+
+export const NFL_PUZZLES = [
+  // Easy (Same generation, 2-4 degrees)
+  { start: "Tom Brady", target: "Randy Moss", difficulty: "Easy" },
+  { start: "Aaron Rodgers", target: "Brett Favre", difficulty: "Easy" },
+  { start: "Peyton Manning", target: "Von Miller", difficulty: "Easy" },
+  { start: "Joe Montana", target: "Jerry Rice", difficulty: "Easy" },
+  { start: "Matthew Stafford", target: "Calvin Johnson", difficulty: "Easy" },
+  { start: "Russell Wilson", target: "Marshawn Lynch", difficulty: "Easy" },
+  { start: "J.J. Watt", target: "DeAndre Hopkins", difficulty: "Easy" },
+  { start: "Matt Ryan", target: "Julio Jones", difficulty: "Easy" },
+  { start: "Ben Roethlisberger", target: "Antonio Brown", difficulty: "Easy" },
+  { start: "Drew Brees", target: "Adrian Peterson", difficulty: "Easy" },
+  { start: "Philip Rivers", target: "LaDainian Tomlinson", difficulty: "Easy" },
+  { start: "Eli Manning", target: "Odell Beckham Jr.", difficulty: "Easy" },
+  { start: "Cam Newton", target: "Christian McCaffrey", difficulty: "Easy" },
+  { start: "Patrick Mahomes", target: "Tyreek Hill", difficulty: "Easy" },
+  { start: "Troy Aikman", target: "Emmitt Smith", difficulty: "Easy" },
+  { start: "Steve Young", target: "Jerry Rice", difficulty: "Easy" },
+  { start: "Kurt Warner", target: "Larry Fitzgerald", difficulty: "Easy" },
+  { start: "Ray Lewis", target: "Ed Reed", difficulty: "Easy" },
+  { start: "Richard Sherman", target: "Russell Wilson", difficulty: "Easy" },
+  { start: "Rob Gronkowski", target: "Julian Edelman", difficulty: "Easy" },
+
+  // Medium (Different generations, 2-5 degrees)
+  { start: "Drew Brees", target: "LaDainian Tomlinson", difficulty: "Medium" },
+  { start: "Kurt Warner", target: "Eli Manning", difficulty: "Medium" },
+  { start: "Randy Moss", target: "Jerry Rice", difficulty: "Medium" },
+  { start: "Stefon Diggs", target: "Adrian Peterson", difficulty: "Medium" },
+  { start: "Cam Newton", target: "Tom Brady", difficulty: "Medium" },
+  { start: "Richard Sherman", target: "Tom Brady", difficulty: "Medium" },
+  { start: "Deion Sanders", target: "Ray Lewis", difficulty: "Medium" },
+  { start: "Shannon Sharpe", target: "Peyton Manning", difficulty: "Medium" },
+  { start: "Charles Woodson", target: "Aaron Rodgers", difficulty: "Medium" },
+  { start: "Champ Bailey", target: "Von Miller", difficulty: "Medium" },
+  { start: "Darrelle Revis", target: "Patrick Mahomes", difficulty: "Medium" },
+  { start: "Le'Veon Bell", target: "Tom Brady", difficulty: "Medium" },
+  { start: "James Harrison", target: "Joe Burrow", difficulty: "Medium" }, // Need Burrow
+  { start: "Jerome Bettis", target: "Ben Roethlisberger", difficulty: "Medium" },
+  { start: "Hines Ward", target: "Antonio Brown", difficulty: "Medium" },
+  { start: "Troy Polamalu", target: "T.J. Watt", difficulty: "Medium" }, // Need TJ Watt
+  { start: "LaMarr Woodley", target: "Khalil Mack", difficulty: "Medium" },
+  { start: "Reggie White", target: "Julius Peppers", difficulty: "Medium" }, // Need Peppers
+  { start: "Lawrence Taylor", target: "Michael Strahan", difficulty: "Medium" }, // Need Strahan
+  { start: "Walter Payton", target: "Brian Urlacher", difficulty: "Medium" }, // Need Urlacher
+
+  // Hard (No overlap, 3-7 degrees)
+  { start: "Tom Brady", target: "Joe Montana", difficulty: "Hard" },
+  { start: "Patrick Mahomes", target: "Brett Favre", difficulty: "Hard" },
+  { start: "Justin Herbert", target: "Drew Brees", difficulty: "Hard" },
+  { start: "Dan Marino", target: "Tua Tagovailoa", difficulty: "Hard" }, // Need Tua
+  { start: "John Elway", target: "Peyton Manning", difficulty: "Hard" },
+  { start: "Terrell Davis", target: "Von Miller", difficulty: "Hard" },
+  { start: "Shannon Sharpe", target: "Travis Kelce", difficulty: "Hard" },
+  { start: "Deion Sanders", target: "Jalen Ramsey", difficulty: "Hard" }, // Need Ramsey
+  { start: "Emmitt Smith", target: "Ezekiel Elliott", difficulty: "Hard" }, // Need Zeke
+  { start: "Troy Aikman", target: "Dak Prescott", difficulty: "Hard" }, // Need Dak
+  { start: "Michael Irvin", target: "CeeDee Lamb", difficulty: "Hard" }, // Need Lamb
+  { start: "Reggie White", target: "Fletcher Cox", difficulty: "Hard" }, // Need Cox
+  { start: "Lawrence Taylor", target: "Kayvon Thibodeaux", difficulty: "Hard" }, // Need Thibodeaux
+  { start: "Walter Payton", target: "Justin Fields", difficulty: "Hard" }, // Need Fields
+  { start: "Joe Namath", target: "Aaron Rodgers", difficulty: "Hard" },
+  { start: "Terry Bradshaw", target: "Ben Roethlisberger", difficulty: "Hard" },
+  { start: "Franco Harris", target: "Najee Harris", difficulty: "Hard" }, // Need Najee
+  { start: "Mean Joe Greene", target: "Cam Heyward", difficulty: "Hard" }, // Need Heyward
+  { start: "Jim Brown", target: "Nick Chubb", difficulty: "Hard" }, // Need Chubb
+  { start: "Johnny Unitas", target: "Lamar Jackson", difficulty: "Hard" } // Need Lamar
+];

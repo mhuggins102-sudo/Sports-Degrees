@@ -103,3 +103,39 @@ export const getRandomPlayers = (mode: GameMode): { start: string; target: strin
 };
 
 export const getPlayerCount = (mode: GameMode): number => getData(mode).players.length;
+
+export const validateTeammateOffline = (mode: GameMode, currentPlayer: string, guessName: string) => {
+  const data = getData(mode);
+  const fuse = mode === GameMode.MLB ? mlbFuse : nflFuse;
+
+  // Exact match first, then fuzzy
+  let canonicalName: string | null = null;
+  if (data.playerSeasons[guessName] !== undefined) {
+    canonicalName = guessName;
+  } else {
+    const results = fuse.search(guessName);
+    canonicalName = results.length > 0 ? results[0].item : null;
+  }
+
+  if (!canonicalName) {
+    return { isValid: false as const, reason: `"${guessName}" not found in the database.` };
+  }
+
+  const s1 = data.playerSeasons[currentPlayer] ?? [];
+  const s2 = data.playerSeasons[canonicalName] ?? [];
+
+  for (const r1 of s1) {
+    for (const r2 of s2) {
+      if (r1.team === r2.team && r1.year === r2.year) {
+        return {
+          isValid: true as const,
+          correctedName: canonicalName,
+          team: r1.team,
+          years: r1.year.toString(),
+        };
+      }
+    }
+  }
+
+  return { isValid: false as const, reason: `${canonicalName} was not a teammate of ${currentPlayer}.` };
+};

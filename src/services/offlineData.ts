@@ -1,7 +1,7 @@
 import Fuse from 'fuse.js';
 import mlbDataRaw from '../data/mlb_data.json';
 import nflDataRaw from '../data/nfl_data.json';
-import type { GameMode, PlayerNode } from '../types';  // Adjust if types.ts is elsewhere
+import type { GameMode, PlayerNode } from '../../types';  // Adjust if types.ts is elsewhere
 
 export interface SportData {
   players: string[];

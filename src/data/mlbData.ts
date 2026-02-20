@@ -115,37 +115,37 @@ export const MLB_PUZZLES = [
   { start: "Tony Gwynn", target: "Fernando Tatis Jr.", difficulty: "Medium" },
   { start: "Wade Boggs", target: "Mookie Betts", difficulty: "Medium" },
   { start: "Mark McGwire", target: "Albert Pujols", difficulty: "Medium" },
-  { start: "Sammy Sosa", target: "Kris Bryant", difficulty: "Medium" }, // Need Kris Bryant? Or use existing
-  { start: "Frank Thomas", target: "Jose Abreu", difficulty: "Medium" }, // Need Abreu
+  { start: "Sammy Sosa", target: "Kris Bryant", difficulty: "Medium" },
+  { start: "Frank Thomas", target: "Jose Abreu", difficulty: "Medium" },
   { start: "Jim Thome", target: "Bryce Harper", difficulty: "Medium" },
   { start: "Vladimir Guerrero", target: "Mike Trout", difficulty: "Medium" },
   { start: "Adrian Beltre", target: "Corey Seager", difficulty: "Medium" },
   { start: "Miguel Tejada", target: "Manny Machado", difficulty: "Medium" },
   { start: "Bartolo Colon", target: "Shohei Ohtani", difficulty: "Medium" },
-  { start: "Zack Greinke", target: "George Brett", difficulty: "Medium" }, // Need Brett
+  { start: "Zack Greinke", target: "George Brett", difficulty: "Medium" },
   { start: "Andrew McCutchen", target: "Barry Bonds", difficulty: "Medium" },
-  { start: "Giancarlo Stanton", target: "Gary Sheffield", difficulty: "Medium" }, // Need Sheffield
+  { start: "Giancarlo Stanton", target: "Gary Sheffield", difficulty: "Medium" },
   { start: "Gerrit Cole", target: "Roger Clemens", difficulty: "Medium" },
 
   // Hard (No overlap, 3-7 degrees)
   { start: "Babe Ruth", target: "Aaron Judge", difficulty: "Hard" },
   { start: "Lou Gehrig", target: "Derek Jeter", difficulty: "Hard" },
-  { start: "Joe DiMaggio", target: "Bernie Williams", difficulty: "Hard" }, // Need Bernie
+  { start: "Joe DiMaggio", target: "Bernie Williams", difficulty: "Hard" },
   { start: "Mickey Mantle", target: "Robinson Cano", difficulty: "Hard" },
-  { start: "Yogi Berra", target: "Jorge Posada", difficulty: "Hard" }, // Need Posada
+  { start: "Yogi Berra", target: "Jorge Posada", difficulty: "Hard" },
   { start: "Willie Mays", target: "Barry Bonds", difficulty: "Hard" },
-  { start: "Hank Aaron", target: "Ronald Acuna Jr.", difficulty: "Hard" }, // Need Acuna
-  { start: "Nolan Ryan", target: "Jacob deGrom", difficulty: "Hard" }, // Need deGrom
+  { start: "Hank Aaron", target: "Ronald Acuna Jr.", difficulty: "Hard" },
+  { start: "Nolan Ryan", target: "Jacob deGrom", difficulty: "Hard" },
   { start: "Reggie Jackson", target: "Giancarlo Stanton", difficulty: "Hard" },
   { start: "Rickey Henderson", target: "Ronald Acuna Jr.", difficulty: "Hard" },
-  { start: "Greg Maddux", target: "Warren Spahn", difficulty: "Hard" }, // Need Spahn
-  { start: "Tom Glavine", target: "Max Fried", difficulty: "Hard" }, // Need Fried
-  { start: "John Smoltz", target: "Spencer Strider", difficulty: "Hard" }, // Need Strider
-  { start: "Chipper Jones", target: "Austin Riley", difficulty: "Hard" }, // Need Riley
-  { start: "Cal Ripken Jr.", target: "Adley Rutschman", difficulty: "Hard" }, // Need Rutschman
+  { start: "Greg Maddux", target: "Warren Spahn", difficulty: "Hard" },
+  { start: "Tom Glavine", target: "Max Fried", difficulty: "Hard" },
+  { start: "John Smoltz", target: "Spencer Strider", difficulty: "Hard" },
+  { start: "Chipper Jones", target: "Austin Riley", difficulty: "Hard" },
+  { start: "Cal Ripken Jr.", target: "Adley Rutschman", difficulty: "Hard" },
   { start: "Tony Gwynn", target: "Juan Soto", difficulty: "Hard" },
-  { start: "Wade Boggs", target: "Rafael Devers", difficulty: "Hard" }, // Need Devers
+  { start: "Wade Boggs", target: "Rafael Devers", difficulty: "Hard" },
   { start: "Roger Clemens", target: "Gerrit Cole", difficulty: "Hard" },
   { start: "Mark McGwire", target: "Paul Goldschmidt", difficulty: "Hard" },
-  { start: "Sammy Sosa", target: "Cody Bellinger", difficulty: "Hard" } // Need Bellinger
+  { start: "Sammy Sosa", target: "Cody Bellinger", difficulty: "Hard" }
 ];

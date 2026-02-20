@@ -147,34 +147,34 @@ export const NFL_PUZZLES = [
   { start: "Champ Bailey", target: "Von Miller", difficulty: "Medium" },
   { start: "Darrelle Revis", target: "Patrick Mahomes", difficulty: "Medium" },
   { start: "Le'Veon Bell", target: "Tom Brady", difficulty: "Medium" },
-  { start: "James Harrison", target: "Joe Burrow", difficulty: "Medium" }, // Need Burrow
+  { start: "James Harrison", target: "Joe Burrow", difficulty: "Medium" },
   { start: "Jerome Bettis", target: "Ben Roethlisberger", difficulty: "Medium" },
   { start: "Hines Ward", target: "Antonio Brown", difficulty: "Medium" },
-  { start: "Troy Polamalu", target: "T.J. Watt", difficulty: "Medium" }, // Need TJ Watt
+  { start: "Troy Polamalu", target: "T.J. Watt", difficulty: "Medium" },
   { start: "LaMarr Woodley", target: "Khalil Mack", difficulty: "Medium" },
-  { start: "Reggie White", target: "Julius Peppers", difficulty: "Medium" }, // Need Peppers
-  { start: "Lawrence Taylor", target: "Michael Strahan", difficulty: "Medium" }, // Need Strahan
-  { start: "Walter Payton", target: "Brian Urlacher", difficulty: "Medium" }, // Need Urlacher
+  { start: "Reggie White", target: "Julius Peppers", difficulty: "Medium" },
+  { start: "Lawrence Taylor", target: "Michael Strahan", difficulty: "Medium" },
+  { start: "Walter Payton", target: "Brian Urlacher", difficulty: "Medium" },
 
   // Hard (No overlap, 3-7 degrees)
   { start: "Tom Brady", target: "Joe Montana", difficulty: "Hard" },
   { start: "Patrick Mahomes", target: "Brett Favre", difficulty: "Hard" },
   { start: "Justin Herbert", target: "Drew Brees", difficulty: "Hard" },
-  { start: "Dan Marino", target: "Tua Tagovailoa", difficulty: "Hard" }, // Need Tua
+  { start: "Dan Marino", target: "Tua Tagovailoa", difficulty: "Hard" },
   { start: "John Elway", target: "Peyton Manning", difficulty: "Hard" },
   { start: "Terrell Davis", target: "Von Miller", difficulty: "Hard" },
   { start: "Shannon Sharpe", target: "Travis Kelce", difficulty: "Hard" },
-  { start: "Deion Sanders", target: "Jalen Ramsey", difficulty: "Hard" }, // Need Ramsey
-  { start: "Emmitt Smith", target: "Ezekiel Elliott", difficulty: "Hard" }, // Need Zeke
-  { start: "Troy Aikman", target: "Dak Prescott", difficulty: "Hard" }, // Need Dak
-  { start: "Michael Irvin", target: "CeeDee Lamb", difficulty: "Hard" }, // Need Lamb
-  { start: "Reggie White", target: "Fletcher Cox", difficulty: "Hard" }, // Need Cox
-  { start: "Lawrence Taylor", target: "Kayvon Thibodeaux", difficulty: "Hard" }, // Need Thibodeaux
-  { start: "Walter Payton", target: "Justin Fields", difficulty: "Hard" }, // Need Fields
+  { start: "Deion Sanders", target: "Jalen Ramsey", difficulty: "Hard" },
+  { start: "Emmitt Smith", target: "Ezekiel Elliott", difficulty: "Hard" },
+  { start: "Troy Aikman", target: "Dak Prescott", difficulty: "Hard" },
+  { start: "Michael Irvin", target: "CeeDee Lamb", difficulty: "Hard" },
+  { start: "Reggie White", target: "Fletcher Cox", difficulty: "Hard" },
+  { start: "Lawrence Taylor", target: "Kayvon Thibodeaux", difficulty: "Hard" },
+  { start: "Walter Payton", target: "Justin Fields", difficulty: "Hard" },
   { start: "Joe Namath", target: "Aaron Rodgers", difficulty: "Hard" },
   { start: "Terry Bradshaw", target: "Ben Roethlisberger", difficulty: "Hard" },
-  { start: "Franco Harris", target: "Najee Harris", difficulty: "Hard" }, // Need Najee
-  { start: "Mean Joe Greene", target: "Cam Heyward", difficulty: "Hard" }, // Need Heyward
-  { start: "Jim Brown", target: "Nick Chubb", difficulty: "Hard" }, // Need Chubb
-  { start: "Johnny Unitas", target: "Lamar Jackson", difficulty: "Hard" } // Need Lamar
+  { start: "Franco Harris", target: "Najee Harris", difficulty: "Hard" },
+  { start: "Mean Joe Greene", target: "Cam Heyward", difficulty: "Hard" },
+  { start: "Jim Brown", target: "Nick Chubb", difficulty: "Hard" },
+  { start: "Johnny Unitas", target: "Lamar Jackson", difficulty: "Hard" }
 ];

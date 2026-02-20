@@ -64,7 +64,22 @@ export const MLB_PLAYERS: Record<string, PlayerHistory> = {
   "Corey Seager": { teams: [{ name: "Los Angeles Dodgers", start: 2015, end: 2021 }, { name: "Texas Rangers", start: 2022, end: 2024 }] },
   "Trea Turner": { teams: [{ name: "Washington Nationals", start: 2015, end: 2021 }, { name: "Los Angeles Dodgers", start: 2021, end: 2022 }, { name: "Philadelphia Phillies", start: 2023, end: 2024 }] },
   "Paul Goldschmidt": { teams: [{ name: "Arizona Diamondbacks", start: 2011, end: 2018 }, { name: "St. Louis Cardinals", start: 2019, end: 2024 }] },
-  "Nolan Arenado": { teams: [{ name: "Colorado Rockies", start: 2013, end: 2020 }, { name: "St. Louis Cardinals", start: 2021, end: 2024 }] }
+  "Nolan Arenado": { teams: [{ name: "Colorado Rockies", start: 2013, end: 2020 }, { name: "St. Louis Cardinals", start: 2021, end: 2024 }] },
+  "Kris Bryant": { teams: [{ name: "Chicago Cubs", start: 2015, end: 2021 }, { name: "San Francisco Giants", start: 2021, end: 2021 }, { name: "Colorado Rockies", start: 2022, end: 2024 }] },
+  "Jose Abreu": { teams: [{ name: "Chicago White Sox", start: 2014, end: 2022 }, { name: "Houston Astros", start: 2023, end: 2024 }] },
+  "George Brett": { teams: [{ name: "Kansas City Royals", start: 1973, end: 1993 }] },
+  "Gary Sheffield": { teams: [{ name: "Milwaukee Brewers", start: 1988, end: 1991 }, { name: "San Diego Padres", start: 1992, end: 1993 }, { name: "Florida Marlins", start: 1993, end: 1998 }, { name: "Los Angeles Dodgers", start: 1998, end: 2001 }, { name: "Atlanta Braves", start: 2002, end: 2004 }, { name: "New York Yankees", start: 2004, end: 2006 }, { name: "Detroit Tigers", start: 2007, end: 2008 }, { name: "New York Mets", start: 2009, end: 2009 }] },
+  "Bernie Williams": { teams: [{ name: "New York Yankees", start: 1991, end: 2006 }] },
+  "Jorge Posada": { teams: [{ name: "New York Yankees", start: 1995, end: 2011 }] },
+  "Ronald Acuna Jr.": { teams: [{ name: "Atlanta Braves", start: 2018, end: 2024 }] },
+  "Jacob deGrom": { teams: [{ name: "New York Mets", start: 2014, end: 2022 }, { name: "Texas Rangers", start: 2023, end: 2024 }] },
+  "Warren Spahn": { teams: [{ name: "Boston Braves", start: 1942, end: 1952 }, { name: "Milwaukee Braves", start: 1953, end: 1964 }, { name: "New York Mets", start: 1965, end: 1965 }, { name: "San Francisco Giants", start: 1965, end: 1965 }] },
+  "Max Fried": { teams: [{ name: "Atlanta Braves", start: 2017, end: 2023 }, { name: "New York Yankees", start: 2024, end: 2024 }] },
+  "Spencer Strider": { teams: [{ name: "Atlanta Braves", start: 2022, end: 2024 }] },
+  "Austin Riley": { teams: [{ name: "Atlanta Braves", start: 2019, end: 2024 }] },
+  "Adley Rutschman": { teams: [{ name: "Baltimore Orioles", start: 2022, end: 2024 }] },
+  "Rafael Devers": { teams: [{ name: "Boston Red Sox", start: 2017, end: 2024 }] },
+  "Cody Bellinger": { teams: [{ name: "Los Angeles Dodgers", start: 2017, end: 2022 }, { name: "Chicago Cubs", start: 2023, end: 2024 }] }
 };
 
 export const MLB_PUZZLES = [

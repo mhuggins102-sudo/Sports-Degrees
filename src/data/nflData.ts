@@ -1,5 +1,7 @@
 
-import { PlayerHistory } from './nflData';
+export interface PlayerHistory {
+  teams: { name: string; start: number; end: number }[];
+}
 
 export const NFL_PLAYERS: Record<string, PlayerHistory> = {
   "Tom Brady": { teams: [{ name: "New England Patriots", start: 2000, end: 2019 }, { name: "Tampa Bay Buccaneers", start: 2020, end: 2022 }] },
@@ -89,7 +91,24 @@ export const NFL_PLAYERS: Record<string, PlayerHistory> = {
   "Troy Polamalu": { teams: [{ name: "Pittsburgh Steelers", start: 2003, end: 2014 }] },
   "Jerome Bettis": { teams: [{ name: "Los Angeles Rams", start: 1993, end: 1995 }, { name: "Pittsburgh Steelers", start: 1996, end: 2005 }] },
   "LaMarr Woodley": { teams: [{ name: "Pittsburgh Steelers", start: 2007, end: 2013 }, { name: "Oakland Raiders", start: 2014, end: 2014 }, { name: "Arizona Cardinals", start: 2015, end: 2015 }] },
-  "James Harrison": { teams: [{ name: "Pittsburgh Steelers", start: 2002, end: 2012 }, { name: "Cincinnati Bengals", start: 2013, end: 2013 }, { name: "Pittsburgh Steelers", start: 2014, end: 2017 }, { name: "New England Patriots", start: 2017, end: 2017 }] }
+  "James Harrison": { teams: [{ name: "Pittsburgh Steelers", start: 2002, end: 2012 }, { name: "Cincinnati Bengals", start: 2013, end: 2013 }, { name: "Pittsburgh Steelers", start: 2014, end: 2017 }, { name: "New England Patriots", start: 2017, end: 2017 }] },
+  "Joe Burrow": { teams: [{ name: "Cincinnati Bengals", start: 2020, end: 2024 }] },
+  "T.J. Watt": { teams: [{ name: "Pittsburgh Steelers", start: 2017, end: 2024 }] },
+  "Julius Peppers": { teams: [{ name: "Carolina Panthers", start: 2002, end: 2009 }, { name: "Chicago Bears", start: 2010, end: 2013 }, { name: "Green Bay Packers", start: 2014, end: 2015 }, { name: "Carolina Panthers", start: 2017, end: 2018 }] },
+  "Michael Strahan": { teams: [{ name: "New York Giants", start: 1993, end: 2007 }] },
+  "Brian Urlacher": { teams: [{ name: "Chicago Bears", start: 2000, end: 2012 }] },
+  "Tua Tagovailoa": { teams: [{ name: "Miami Dolphins", start: 2020, end: 2024 }] },
+  "Jalen Ramsey": { teams: [{ name: "Jacksonville Jaguars", start: 2016, end: 2019 }, { name: "Los Angeles Rams", start: 2019, end: 2023 }, { name: "Miami Dolphins", start: 2024, end: 2024 }] },
+  "Ezekiel Elliott": { teams: [{ name: "Dallas Cowboys", start: 2016, end: 2023 }, { name: "New England Patriots", start: 2024, end: 2024 }] },
+  "Dak Prescott": { teams: [{ name: "Dallas Cowboys", start: 2016, end: 2024 }] },
+  "CeeDee Lamb": { teams: [{ name: "Dallas Cowboys", start: 2020, end: 2024 }] },
+  "Fletcher Cox": { teams: [{ name: "Philadelphia Eagles", start: 2012, end: 2023 }] },
+  "Kayvon Thibodeaux": { teams: [{ name: "New York Giants", start: 2022, end: 2024 }] },
+  "Justin Fields": { teams: [{ name: "Chicago Bears", start: 2021, end: 2023 }, { name: "Pittsburgh Steelers", start: 2024, end: 2024 }] },
+  "Najee Harris": { teams: [{ name: "Pittsburgh Steelers", start: 2021, end: 2024 }] },
+  "Cam Heyward": { teams: [{ name: "Pittsburgh Steelers", start: 2011, end: 2024 }] },
+  "Nick Chubb": { teams: [{ name: "Cleveland Browns", start: 2018, end: 2024 }] },
+  "Lamar Jackson": { teams: [{ name: "Baltimore Ravens", start: 2018, end: 2024 }] }
 };
 
 export const NFL_PUZZLES = [

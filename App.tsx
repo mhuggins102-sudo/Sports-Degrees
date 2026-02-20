@@ -1,102 +1,115 @@
-import Fuse from 'fuse.js';
-import type { GameMode, PlayerNode } from '../types';  // Adjust if types.ts is elsewhere
+import React, { useState, useEffect } from 'react';
+import { GameMode, PlayerNode } from './types';  // Adjust if types.ts is in root or src/
+import { areTeammates, findShortestPath, getRandomPlayers, searchPlayers, getPlayerCount } from './src/services/offlineData';
 
-export interface SportData {
-  players: string[];
-  playerSeasons: Record<string, Array<{ team: string; year: number }>>;
-  teamSeasons: Record<string, string[]>;
-}
+const App: React.FC = () => {
+  const [mode, setMode] = useState<GameMode>(GameMode.MLB);
+  const [startPlayer, setStartPlayer] = useState<string>('');
+  const [targetPlayer, setTargetPlayer] = useState<string>('');
+  const [currentChain, setCurrentChain] = useState<string[]>([]);
+  const [solution, setSolution] = useState<PlayerNode[] | null>(null);
+  const [error, setError] = useState<string>('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [playerCount, setPlayerCount] = useState(0);
 
-const mlbData: SportData = mlbDataRaw as SportData;
-const nflData: SportData = nflDataRaw as SportData;
+  useEffect(() => {
+    setIsLoading(false);
+    setPlayerCount(getPlayerCount(mode));
+  }, [mode]);
 
-const getData = (mode: GameMode): SportData =>
-  mode === GameMode.MLB ? mlbData : nflData;
+  const startNewGame = () => {
+    const { start, target } = getRandomPlayers(mode);
+    setStartPlayer(start);
+    setTargetPlayer(target);
+    setCurrentChain([start]);
+    setSolution(null);
+    setError('');
+  };
 
-// Fuzzy search setup (one per mode)
-const mlbFuse = new Fuse(mlbData.players, { threshold: 0.3, minMatchCharLength: 3 });
-const nflFuse = new Fuse(nflData.players, { threshold: 0.3, minMatchCharLength: 3 });
-
-export const searchPlayers = (mode: GameMode, query: string): string[] => {
-  const fuse = mode === GameMode.MLB ? mlbFuse : nflFuse;
-  return fuse.search(query).slice(0, 10).map(result => result.item);
-};
-
-export const areTeammates = (mode: GameMode, p1: string, p2: string): boolean => {
-  const data = getData(mode);
-  const s1 = data.playerSeasons[p1] ?? [];
-  const s2 = data.playerSeasons[p2] ?? [];
-  return s1.some(r1 => s2.some(r2 => r1.team === r2.team && r1.year === r2.year));
-};
-
-export const findShortestPath = (mode: GameMode, start: string, target: string): PlayerNode[] | null => {
-  const data = getData(mode);
-  if (!data.playerSeasons[start] || !data.playerSeasons[target]) return null;
-
-  const queue: string[] = [start];
-  const visited = new Set([start]);
-  const parent = new Map<string, { prev: string; team: string; year: number }>();
-
-  while (queue.length) {
-    const current = queue.shift()!;
-
-    if (current === target) break;
-
-    const mySeasons = data.playerSeasons[current];
-    const neighbors = new Set<string>();
-
-    for (const r of mySeasons) {
-      const key = `${r.team}-${r.year}`;
-      (data.teamSeasons[key] ?? []).forEach(p => {
-        if (p !== current) neighbors.add(p);
-      });
-    }
-
-    for (const neigh of neighbors) {
-      if (!visited.has(neigh)) {
-        visited.add(neigh);
-        queue.push(neigh);
-
-        // Find shared season (first match)
-        let sharedTeam = '', sharedYear = 0;
-        for (const r1 of mySeasons) {
-          for (const r2 of data.playerSeasons[neigh] ?? []) {
-            if (r1.team === r2.team && r1.year === r2.year) {
-              sharedTeam = r1.team;
-              sharedYear = r1.year;
-              break;
-            }
-          }
-          if (sharedTeam) break;
-        }
-        parent.set(neigh, { prev: current, team: sharedTeam, year: sharedYear });
+  const handleAddPlayer = (newPlayer: string) => {
+    if (!newPlayer) return;
+    const lastPlayer = currentChain[currentChain.length - 1];
+    if (areTeammates(mode, lastPlayer, newPlayer)) {
+      setCurrentChain([...currentChain, newPlayer]);
+      setError('');
+      if (newPlayer === targetPlayer) {
+        setError('You win! Degrees: ' + (currentChain.length));
       }
+    } else {
+      setError(`${newPlayer} was not a teammate of ${lastPlayer}.`);
     }
-  }
+  };
 
-  if (!parent.has(target) && start !== target) return null;
+  const handleSolve = () => {
+    const path = findShortestPath(mode, startPlayer, targetPlayer);
+    setSolution(path);
+  };
 
-  // Reconstruct path
-  const path: PlayerNode[] = [];
-  let curr = target;
-  while (true) {
-    path.unshift({ 
-      id: curr, 
-      name: curr, 
-      ...(curr !== start && parent.has(curr) ? { connectionToPrev: { team: parent.get(curr)!.team, years: parent.get(curr)!.year.toString() } } : {}) 
-    });
-    if (curr === start) break;
-    curr = parent.get(curr)!.prev;
-  }
-  return path;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    if (query.length >= 3) {
+      setSuggestions(searchPlayers(mode, query));
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const selectSuggestion = (player: string) => {
+    handleAddPlayer(player);
+    setSuggestions([]);
+  };
+
+  if (isLoading) return <div>Loading data...</div>;
+
+  return (
+    <div className="App">
+      <h1>Sports Degrees ({mode})</h1>
+      <p>Loaded {playerCount.toLocaleString()} players offline!</p>
+      <button onClick={() => setMode(mode === GameMode.MLB ? GameMode.NFL : GameMode.MLB)}>
+        Switch to {mode === GameMode.MLB ? 'NFL' : 'MLB'}
+      </button>
+      <button onClick={startNewGame}>New Random Game</button>
+
+      <div>
+        Start: {startPlayer}
+        <br />
+        Target: {targetPlayer}
+      </div>
+
+      <div>
+        Chain: {currentChain.join(' → ')}
+      </div>
+
+      <input 
+        type="text" 
+        placeholder="Add next teammate" 
+        onChange={handleInputChange}
+      />
+      {suggestions.length > 0 && (
+        <ul>
+          {suggestions.map(p => (
+            <li key={p} onClick={() => selectSuggestion(p)}>{p}</li>
+          ))}
+        </ul>
+      )}
+
+      {error && <p>{error}</p>}
+
+      <button onClick={handleSolve}>Solve</button>
+
+      {solution && (
+        <div>
+          <h2>Shortest Path ({solution.length - 1} degrees):</h2>
+          {solution.map((node, i) => (
+            <p key={i}>
+              {node.name} {node.connectionToPrev ? ` (with ${solution[i-1].name} on ${node.connectionToPrev.team} in ${node.connectionToPrev.years})` : ''}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
-export const getRandomPlayers = (mode: GameMode): { start: string; target: string } => {
-  const players = getData(mode).players;
-  const idx1 = Math.floor(Math.random() * players.length);
-  let idx2 = Math.floor(Math.random() * players.length);
-  while (idx2 === idx1) idx2 = Math.floor(Math.random() * players.length);
-  return { start: players[idx1], target: players[idx2] };
-};
-
-export const getPlayerCount = (mode: GameMode): number => getData(mode).players.length;
+export default App;

@@ -3,6 +3,8 @@ export enum GameMode {
   MLB = 'MLB',
 }
 
+export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
 export interface PlayerNode {
   id: string; // Unique ID for keying
   name: string;

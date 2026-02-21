@@ -32,18 +32,27 @@ export const areTeammates = (mode: GameMode, p1: string, p2: string): boolean =>
   return s1.some(r1 => s2.some(r2 => r1.team === r2.team && r1.year === r2.year));
 };
 
-export const findShortestPath = (mode: GameMode, start: string, target: string): PlayerNode[] | null => {
+// maxDepth limits how deep BFS goes; use Infinity for gameplay, a small
+// number (e.g. 10) for fast challenge generation.
+export const findShortestPath = (
+  mode: GameMode,
+  start: string,
+  target: string,
+  maxDepth = Infinity,
+): PlayerNode[] | null => {
   const data = getData(mode);
   if (!data.playerSeasons[start] || !data.playerSeasons[target]) return null;
 
-  const queue: string[] = [start];
+  type QItem = { player: string; depth: number };
+  const queue: QItem[] = [{ player: start, depth: 0 }];
   const visited = new Set([start]);
   const parent = new Map<string, { prev: string; team: string; year: number }>();
 
   while (queue.length) {
-    const current = queue.shift()!;
+    const { player: current, depth } = queue.shift()!;
 
     if (current === target) break;
+    if (depth >= maxDepth) continue;
 
     const mySeasons = data.playerSeasons[current];
     const neighbors = new Set<string>();
@@ -58,9 +67,8 @@ export const findShortestPath = (mode: GameMode, start: string, target: string):
     for (const neigh of neighbors) {
       if (!visited.has(neigh)) {
         visited.add(neigh);
-        queue.push(neigh);
+        queue.push({ player: neigh, depth: depth + 1 });
 
-        // Find shared season (first match)
         let sharedTeam = '', sharedYear = 0;
         for (const r1 of mySeasons) {
           for (const r2 of data.playerSeasons[neigh] ?? []) {
@@ -79,14 +87,13 @@ export const findShortestPath = (mode: GameMode, start: string, target: string):
 
   if (!parent.has(target) && start !== target) return null;
 
-  // Reconstruct path
   const path: PlayerNode[] = [];
   let curr = target;
   while (true) {
-    path.unshift({ 
-      id: curr, 
-      name: curr, 
-      ...(curr !== start && parent.has(curr) ? { connectionToPrev: { team: parent.get(curr)!.team, years: parent.get(curr)!.year.toString() } } : {}) 
+    path.unshift({
+      id: curr,
+      name: curr,
+      ...(curr !== start && parent.has(curr) ? { connectionToPrev: { team: parent.get(curr)!.team, years: parent.get(curr)!.year.toString() } } : {})
     });
     if (curr === start) break;
     curr = parent.get(curr)!.prev;
@@ -94,12 +101,79 @@ export const findShortestPath = (mode: GameMode, start: string, target: string):
   return path;
 };
 
-export const getRandomPlayers = (mode: GameMode): { start: string; target: string } => {
-  const players = getData(mode).players;
-  const idx1 = Math.floor(Math.random() * players.length);
-  let idx2 = Math.floor(Math.random() * players.length);
-  while (idx2 === idx1) idx2 = Math.floor(Math.random() * players.length);
-  return { start: players[idx1], target: players[idx2] };
+import type { Difficulty } from '../../types';
+
+// Returns unique career years for a player.
+const careerYears = (mode: GameMode, player: string): Set<number> =>
+  new Set((getData(mode).playerSeasons[player] ?? []).map(s => s.year));
+
+// Counts how many calendar years two players were both active in the league.
+const careerOverlap = (y1: Set<number>, y2: Set<number>): number => {
+  let count = 0;
+  for (const y of y1) if (y2.has(y)) count++;
+  return count;
+};
+
+export const getRandomPlayers = (
+  mode: GameMode,
+  difficulty: Difficulty = 'Easy',
+): { start: string; target: string } | null => {
+  const data = getData(mode);
+
+  // Minimum distinct seasons required per difficulty
+  const minSeasons = difficulty === 'Easy' ? 10 : difficulty === 'Medium' ? 8 : 6;
+
+  // Pre-filter to eligible players only (avoids burning BFS on short careers)
+  const eligible = data.players.filter(p => careerYears(mode, p).size >= minSeasons);
+  if (eligible.length < 2) return null;
+
+  // BFS depth cap for generation speed: we only care about paths ≤ 10 hops
+  const BFS_CAP = 10;
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const i1 = Math.floor(Math.random() * eligible.length);
+    let i2 = Math.floor(Math.random() * eligible.length);
+    while (i2 === i1) i2 = Math.floor(Math.random() * eligible.length);
+
+    const p1 = eligible[i1];
+    const p2 = eligible[i2];
+
+    const y1 = careerYears(mode, p1);
+    const y2 = careerYears(mode, p2);
+    const overlap = careerOverlap(y1, y2);
+
+    // Career-overlap gate (fast check before BFS)
+    if (difficulty === 'Easy' && overlap < 3) continue;
+    if (difficulty === 'Medium' && (overlap < 1 || overlap > 2)) continue;
+    if (difficulty === 'Hard' && overlap > 0) continue;
+
+    // Degree-of-separation gate (BFS with depth cap)
+    const path = findShortestPath(mode, p1, p2, BFS_CAP);
+    if (!path) continue;
+
+    const degrees = path.length - 1;
+    if (difficulty === 'Easy' && (degrees < 2 || degrees > 4)) continue;
+    if ((difficulty === 'Medium' || difficulty === 'Hard') && degrees < 3) continue;
+
+    return { start: p1, target: p2 };
+  }
+
+  // Soft fallback: return a pair that at least satisfies the overlap rule
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const i1 = Math.floor(Math.random() * eligible.length);
+    let i2 = Math.floor(Math.random() * eligible.length);
+    while (i2 === i1) i2 = Math.floor(Math.random() * eligible.length);
+
+    const p1 = eligible[i1];
+    const p2 = eligible[i2];
+    const overlap = careerOverlap(careerYears(mode, p1), careerYears(mode, p2));
+
+    if (difficulty === 'Easy' && overlap >= 3) return { start: p1, target: p2 };
+    if (difficulty === 'Medium' && overlap >= 1 && overlap <= 2) return { start: p1, target: p2 };
+    if (difficulty === 'Hard' && overlap === 0) return { start: p1, target: p2 };
+  }
+
+  return null;
 };
 
 export const getPlayerCount = (mode: GameMode): number => getData(mode).players.length;

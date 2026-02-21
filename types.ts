@@ -6,13 +6,14 @@ export enum GameMode {
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
 export interface PlayerNode {
-  id: string; // Unique ID for keying
+  id: string;
   name: string;
-  // If this node connects to the PREVIOUS node, describe that connection
   connectionToPrev?: {
     team: string;
     years: string;
   };
+  position?: string;    // e.g. "QB" (NFL only)
+  careerYears?: string; // e.g. "1999-2022"
 }
 
 export interface GameState {

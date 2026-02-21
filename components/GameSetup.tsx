@@ -4,7 +4,7 @@ import { getRandomPlayers, getPlayerCount } from '../src/services/offlineData';
 import { Zap, Trophy, Club, Database, Loader2 } from 'lucide-react';
 
 interface GameSetupProps {
-  onStart: (mode: GameMode, start: string, target: string) => void;
+  onStart: (mode: GameMode, start: string, target: string, difficulty: Difficulty) => void;
 }
 
 const DIFFICULTY_DESC: Record<Difficulty, string> = {
@@ -26,7 +26,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
     setTimeout(() => {
       const result = getRandomPlayers(mode, difficulty);
       if (result) {
-        onStart(mode, result.start, result.target);
+        onStart(mode, result.start, result.target, difficulty);
       } else {
         setError('Could not generate a valid challenge. Please try again.');
         setGenerating(false);

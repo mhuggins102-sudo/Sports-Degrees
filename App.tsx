@@ -23,7 +23,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="h-screen overflow-hidden bg-slate-950 flex items-center justify-center p-4">
       {appState === 'setup' ? (
         <GameSetup onStart={handleStart} />
       ) : (

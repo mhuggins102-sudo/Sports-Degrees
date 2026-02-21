@@ -10,9 +10,10 @@ interface PlayerCardProps {
   mode: GameMode;
   index: number;
   showCareerYears: boolean;
+  onCardClick?: () => void;
 }
 
-const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget, mode, index, showCareerYears }) => {
+const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget, mode, index, showCareerYears, onCardClick }) => {
   const isNFL = mode === GameMode.NFL;
 
   const borderColor   = isNFL ? 'border-sky-700'              : 'border-emerald-700';
@@ -47,7 +48,10 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
       )}
 
       {/* Card */}
-      <div className={`relative w-full px-3 py-2.5 rounded-lg border-2 transition-all duration-300 ${targetStyle} ${activeRing}`}>
+      <div
+        className={`relative w-full px-3 py-2.5 rounded-lg border-2 transition-all duration-300 ${targetStyle} ${activeRing} ${onCardClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+        onClick={onCardClick}
+      >
         <div className="flex items-center gap-3">
           {/* Icon */}
           <div className={`p-1.5 rounded-full border flex-shrink-0 ${iconRingColor}`}>

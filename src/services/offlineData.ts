@@ -33,6 +33,45 @@ export const areTeammates = (mode: GameMode, p1: string, p2: string): boolean =>
   return s1.some(r1 => s2.some(r2 => r1.team === r2.team && r1.year === r2.year));
 };
 
+// Returns the best shared connection between two players:
+// picks the team with the most shared seasons and returns the full year range.
+const findConnectionFull = (
+  data: SportData,
+  p1: string,
+  p2: string,
+): { team: string; years: string } | null => {
+  const s1 = data.playerSeasons[p1] ?? [];
+  const s2 = data.playerSeasons[p2] ?? [];
+
+  const teamYears = new Map<string, number[]>();
+  for (const r1 of s1) {
+    for (const r2 of s2) {
+      if (r1.team === r2.team && r1.year === r2.year) {
+        const arr = teamYears.get(r1.team) ?? [];
+        arr.push(r1.year);
+        teamYears.set(r1.team, arr);
+      }
+    }
+  }
+
+  if (teamYears.size === 0) return null;
+
+  // Pick the team with the most shared seasons
+  let bestTeam = '';
+  let bestYears: number[] = [];
+  for (const [team, years] of teamYears) {
+    if (years.length > bestYears.length) {
+      bestTeam = team;
+      bestYears = years;
+    }
+  }
+
+  bestYears.sort((a, b) => a - b);
+  const min = bestYears[0];
+  const max = bestYears[bestYears.length - 1];
+  return { team: bestTeam, years: min === max ? String(min) : `${min}–${max}` };
+};
+
 // maxDepth limits how deep BFS goes; use Infinity for gameplay, a small
 // number (e.g. 10) for fast challenge generation.
 export const findShortestPath = (
@@ -47,7 +86,7 @@ export const findShortestPath = (
   type QItem = { player: string; depth: number };
   const queue: QItem[] = [{ player: start, depth: 0 }];
   const visited = new Set([start]);
-  const parent = new Map<string, { prev: string; team: string; year: number }>();
+  const parent = new Map<string, string>(); // neigh → prev player name
 
   while (queue.length) {
     const { player: current, depth } = queue.shift()!;
@@ -69,19 +108,7 @@ export const findShortestPath = (
       if (!visited.has(neigh)) {
         visited.add(neigh);
         queue.push({ player: neigh, depth: depth + 1 });
-
-        let sharedTeam = '', sharedYear = 0;
-        for (const r1 of mySeasons) {
-          for (const r2 of data.playerSeasons[neigh] ?? []) {
-            if (r1.team === r2.team && r1.year === r2.year) {
-              sharedTeam = r1.team;
-              sharedYear = r1.year;
-              break;
-            }
-          }
-          if (sharedTeam) break;
-        }
-        parent.set(neigh, { prev: current, team: sharedTeam, year: sharedYear });
+        parent.set(neigh, current);
       }
     }
   }
@@ -91,13 +118,15 @@ export const findShortestPath = (
   const path: PlayerNode[] = [];
   let curr = target;
   while (true) {
-    path.unshift({
-      id: curr,
-      name: curr,
-      ...(curr !== start && parent.has(curr) ? { connectionToPrev: { team: parent.get(curr)!.team, years: parent.get(curr)!.year.toString() } } : {})
-    });
+    let connectionToPrev: PlayerNode['connectionToPrev'] | undefined;
+    if (curr !== start && parent.has(curr)) {
+      const prev = parent.get(curr)!;
+      const conn = findConnectionFull(data, prev, curr);
+      connectionToPrev = conn ? { team: conn.team, years: conn.years } : undefined;
+    }
+    path.unshift({ id: curr, name: curr, ...(connectionToPrev ? { connectionToPrev } : {}) });
     if (curr === start) break;
-    curr = parent.get(curr)!.prev;
+    curr = parent.get(curr)!;
   }
   return path;
 };
@@ -241,20 +270,15 @@ export const validateTeammateOffline = (mode: GameMode, currentPlayer: string, g
     return { isValid: false as const, reason: `"${guessName}" not found in the database.` };
   }
 
-  const s1 = data.playerSeasons[currentPlayer] ?? [];
-  const s2 = data.playerSeasons[canonicalName] ?? [];
+  const conn = findConnectionFull(data, currentPlayer, canonicalName);
 
-  for (const r1 of s1) {
-    for (const r2 of s2) {
-      if (r1.team === r2.team && r1.year === r2.year) {
-        return {
-          isValid: true as const,
-          correctedName: canonicalName,
-          team: r1.team,
-          years: r1.year.toString(),
-        };
-      }
-    }
+  if (conn) {
+    return {
+      isValid: true as const,
+      correctedName: canonicalName,
+      team: conn.team,
+      years: conn.years,
+    };
   }
 
   return { isValid: false as const, reason: `${canonicalName} was not a teammate of ${currentPlayer}.` };

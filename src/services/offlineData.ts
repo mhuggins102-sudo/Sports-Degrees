@@ -209,6 +209,21 @@ export const getRandomPlayers = (
 
 export const getPlayerCount = (mode: GameMode): number => getData(mode).players.length;
 
+export const getPlayerPosition = (mode: GameMode, player: string): string | undefined =>
+  getData(mode).playerPositions?.[player];
+
+export const getCareerRange = (mode: GameMode, player: string): string | undefined => {
+  const seasons = getData(mode).playerSeasons[player] ?? [];
+  if (seasons.length === 0) return undefined;
+  const years = seasons.map(s => s.year);
+  const min = Math.min(...years);
+  const max = Math.max(...years);
+  return min === max ? String(min) : `${min}-${max}`;
+};
+
+export const getPlayerSeasons = (mode: GameMode, player: string) =>
+  getData(mode).playerSeasons[player] ?? [];
+
 export const validateTeammateOffline = (mode: GameMode, currentPlayer: string, guessName: string) => {
   const data = getData(mode);
   const fuse = mode === GameMode.MLB ? mlbFuse : nflFuse;

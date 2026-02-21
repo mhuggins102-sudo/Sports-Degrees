@@ -5,7 +5,7 @@ import {
   getPlayerPosition, getCareerRange, getPlayerSeasons,
 } from '../src/services/offlineData';
 import PlayerCard from './PlayerCard';
-import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap } from 'lucide-react';
+import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap, X } from 'lucide-react';
 
 interface ActiveGameProps {
   mode: GameMode;
@@ -42,12 +42,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const [solution, setSolution] = useState<SolutionResponse | null>(null);
   const [loadingSolution, setLoadingSolution] = useState(false);
 
-  // Two-stage hint
-  // stage 0 = no hint shown yet for this player
-  // stage 1 = mid-career clue shown; next press auto-adds the optimal player
-  const [hintStage, setHintStage] = useState<0 | 1>(0);
-  const [hintForPlayer, setHintForPlayer] = useState('');
-  const [hintText, setHintText] = useState<string | null>(null);
+  // Popup: which player's seasons to show (null = closed)
+  const [popupPlayer, setPopupPlayer] = useState<string | null>(null);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -58,12 +54,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   const currentNode = chain[chain.length - 1];
   const isNFL = mode === GameMode.NFL;
-
-  // Reset hint state whenever the active player changes
-  useEffect(() => {
-    setHintStage(0);
-    setHintText(null);
-  }, [chain.length]);
 
   // Scroll to bottom when chain grows
   useEffect(() => {
@@ -141,36 +131,15 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     submitGuess(player);
   };
 
-  // ── Two-stage hint ────────────────────────────────────────────────────────
+  // ── Hint: auto-add the next optimal player ───────────────────────────────
 
   const handleHint = () => {
     if (loading || won) return;
-
-    const isNewPlayer = hintForPlayer !== currentNode.name;
-
-    if (hintStage === 0 || isNewPlayer) {
-      // Stage 1: reveal the mid-career team/year for the active player
-      const seasons = getPlayerSeasons(mode, currentNode.name);
-      if (seasons.length === 0) {
-        setHintText('No career data available for a hint.');
-        return;
-      }
-      const sorted = [...seasons].sort((a, b) => a.year - b.year);
-      const mid = sorted[Math.floor(sorted.length / 2)];
-      setHintText(`In ${mid.year}, ${currentNode.name} played for ${mid.team}.`);
-      setHintStage(1);
-      setHintForPlayer(currentNode.name);
+    const path = findShortestPath(mode, currentNode.name, targetPlayer);
+    if (path && path.length > 1) {
+      submitGuess(path[1].name);
     } else {
-      // Stage 2: auto-add the optimal next player
-      const path = findShortestPath(mode, currentNode.name, targetPlayer);
-      if (path && path.length > 1) {
-        setHintText(null);
-        setHintStage(0);
-        submitGuess(path[1].name);
-      } else {
-        setHintText('Could not find a path forward in the offline database.');
-        setHintStage(0);
-      }
+      setError('No path found from here to the target.');
     }
   };
 
@@ -223,12 +192,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
           <button
             onClick={handleHint}
             disabled={loading || won}
-            title={hintStage === 1 && hintForPlayer === currentNode.name ? 'Auto-add next player' : 'Show career hint'}
-            className={`p-2 rounded-full transition-colors ${
-              hintStage === 1 && hintForPlayer === currentNode.name
-                ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
-                : 'hover:bg-slate-800 text-slate-400 hover:text-yellow-400'
-            }`}
+            title="Auto-add next player"
+            className="p-2 rounded-full transition-colors hover:bg-slate-800 text-slate-400 hover:text-yellow-400"
           >
             <Zap className="w-4 h-4" />
           </button>
@@ -238,19 +203,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
           </button>
         </div>
       </div>
-
-      {/* ── Hint banner (below header, above scroll area) ── */}
-      {hintText && (
-        <div className="flex-shrink-0 mx-4 mt-2 px-3 py-2 bg-yellow-900/20 border border-yellow-700/30 rounded-lg text-xs text-yellow-200 flex items-start gap-2">
-          <Zap className="w-3 h-3 mt-0.5 text-yellow-400 flex-shrink-0" />
-          <span>
-            {hintText}
-            {hintStage === 1 && (
-              <span className="text-yellow-500 ml-1">(press ⚡ again to auto-add the next player)</span>
-            )}
-          </span>
-        </div>
-      )}
 
       {/* ── Scrollable card area ── */}
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-0">
@@ -264,6 +216,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             isEnd={idx === chain.length - 1}
             isTarget={node.name === targetPlayer}
             showCareerYears={showCareerYears(idx)}
+            onCardClick={() => setPopupPlayer(node.name)}
           />
         ))}
 
@@ -361,6 +314,56 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
           </div>
         </div>
       )}
+
+      {/* ── Player seasons popup ── */}
+      {popupPlayer && (() => {
+        const seasons = [...getPlayerSeasons(mode, popupPlayer)].sort((a, b) => a.year - b.year || a.team.localeCompare(b.team));
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => setPopupPlayer(null)}
+          >
+            <div
+              className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs border border-slate-800 overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Career Seasons</p>
+                  <p className={`text-sm font-bold ${isNFL ? 'text-sky-300' : 'text-emerald-300'}`}>{popupPlayer}</p>
+                </div>
+                <button
+                  onClick={() => setPopupPlayer(null)}
+                  className="p-1.5 hover:bg-slate-800 rounded-full text-slate-500 hover:text-slate-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-y-auto max-h-72">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-slate-950">
+                    <tr>
+                      <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider font-bold text-slate-500">Season</th>
+                      <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider font-bold text-slate-500">Team</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {seasons.map((s, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-slate-900' : 'bg-slate-800/40'}>
+                        <td className="px-4 py-1.5 text-slate-300 font-medium">{s.year}</td>
+                        <td className="px-4 py-1.5 text-slate-400">{s.team}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Win modal ── */}
       {won && (

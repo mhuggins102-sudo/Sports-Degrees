@@ -48,7 +48,9 @@ import nfl_data_py as nfl
 print("✅ Processing NFL data...")
 years = list(range(1999, 2026))
 rosters = nfl.import_seasonal_rosters(years)
-rosters["fullName"] = rosters["full_name"].fillna("").str.strip()
+
+# Use player_name for the full "First Last" display name
+rosters["fullName"] = rosters["player_name"].fillna("").str.strip()
 
 nfl_player_seasons = {}
 for name, group in rosters.groupby("fullName"):
@@ -63,10 +65,19 @@ for (team, year), group in rosters.groupby(["team", "season"]):
     key = f"{team}-{int(year)}"
     nfl_team_seasons[key] = sorted(set(group["fullName"].dropna().tolist()))
 
+# Extract each player's most common depth_chart_position across their career
+nfl_player_positions = {}
+for name, group in rosters.groupby("fullName"):
+    if len(name.strip()) < 4: continue
+    pos_series = group["depth_chart_position"].dropna()
+    if not pos_series.empty:
+        nfl_player_positions[name] = pos_series.value_counts().index[0]
+
 nfl_data = {
     "players": sorted(nfl_player_seasons.keys()),
     "playerSeasons": nfl_player_seasons,
-    "teamSeasons": nfl_team_seasons
+    "teamSeasons": nfl_team_seasons,
+    "playerPositions": nfl_player_positions
 }
 
 # === Save compact JSONs ===

@@ -2,12 +2,13 @@ import Fuse from 'fuse.js';
 import mlbDataRaw from '../data/mlb_data.json';
 import nflDataRaw from '../data/nfl_data.json';
 import { GameMode } from '../../types';
-import type { PlayerNode } from '../../types';
+import type { PlayerNode, Difficulty } from '../../types';
 
 export interface SportData {
   players: string[];
   playerSeasons: Record<string, Array<{ team: string; year: number }>>;
   teamSeasons: Record<string, string[]>;
+  playerPositions?: Record<string, string>; // NFL only
 }
 
 const mlbData: SportData = mlbDataRaw as SportData;
@@ -17,12 +18,12 @@ const getData = (mode: GameMode): SportData =>
   mode === GameMode.MLB ? mlbData : nflData;
 
 // Fuzzy search setup (one per mode)
-const mlbFuse = new Fuse(mlbData.players, { threshold: 0.3, minMatchCharLength: 3 });
-const nflFuse = new Fuse(nflData.players, { threshold: 0.3, minMatchCharLength: 3 });
+const mlbFuse = new Fuse(mlbData.players, { threshold: 0.3, minMatchCharLength: 2 });
+const nflFuse = new Fuse(nflData.players, { threshold: 0.3, minMatchCharLength: 2 });
 
 export const searchPlayers = (mode: GameMode, query: string): string[] => {
   const fuse = mode === GameMode.MLB ? mlbFuse : nflFuse;
-  return fuse.search(query).slice(0, 10).map(result => result.item);
+  return fuse.search(query).slice(0, 8).map(result => result.item);
 };
 
 export const areTeammates = (mode: GameMode, p1: string, p2: string): boolean => {
@@ -101,17 +102,58 @@ export const findShortestPath = (
   return path;
 };
 
-import type { Difficulty } from '../../types';
+// ── Difficulty-aware player generation ──────────────────────────────────────
 
-// Returns unique career years for a player.
-const careerYears = (mode: GameMode, player: string): Set<number> =>
-  new Set((getData(mode).playerSeasons[player] ?? []).map(s => s.year));
+// Minimum career length (distinct seasons) by mode + difficulty
+const MIN_SEASONS: Record<GameMode, Record<Difficulty, number>> = {
+  [GameMode.NFL]: { Easy: 14, Medium: 10, Hard: 8 },
+  [GameMode.MLB]: { Easy: 15, Medium: 12, Hard: 10 },
+};
 
-// Counts how many calendar years two players were both active in the league.
+// NFL positions mapped from depth_chart_position column
+// Easy: QB, RB (incl. FB), WR, CB, LB (incl. ILB/OLB/MLB)
+const NFL_EASY_POSITIONS = new Set(['QB', 'RB', 'FB', 'WR', 'CB', 'LB', 'ILB', 'OLB', 'MLB']);
+// Medium adds TE, DE, S (FS/SS/DB)
+const NFL_MEDIUM_POSITIONS = new Set([
+  'QB', 'RB', 'FB', 'WR', 'TE',
+  'CB', 'LB', 'ILB', 'OLB', 'MLB',
+  'DE', 'FS', 'SS', 'DB',
+]);
+
+// Returns the set of unique years a player was active
+const careerYears = (data: SportData, player: string): Set<number> =>
+  new Set((data.playerSeasons[player] ?? []).map(s => s.year));
+
+// Counts calendar years that both players were active (not necessarily same team)
 const careerOverlap = (y1: Set<number>, y2: Set<number>): number => {
   let count = 0;
   for (const y of y1) if (y2.has(y)) count++;
   return count;
+};
+
+// Builds the initial eligible player list for the given mode + difficulty
+const buildEligible = (mode: GameMode, difficulty: Difficulty): string[] => {
+  const data = getData(mode);
+  const minSeasons = MIN_SEASONS[mode][difficulty];
+
+  let eligible = data.players.filter(
+    p => careerYears(data, p).size >= minSeasons
+  );
+
+  if (mode === GameMode.NFL && difficulty !== 'Hard') {
+    const allowed = difficulty === 'Easy' ? NFL_EASY_POSITIONS : NFL_MEDIUM_POSITIONS;
+    const posMap = data.playerPositions ?? {};
+    eligible = eligible.filter(p => allowed.has(posMap[p] ?? ''));
+  }
+
+  if (mode === GameMode.MLB && difficulty !== 'Hard') {
+    const sinceYear = difficulty === 'Easy' ? 1990 : 1970;
+    eligible = eligible.filter(p =>
+      (data.playerSeasons[p] ?? []).some(s => s.year >= sinceYear)
+    );
+  }
+
+  return eligible;
 };
 
 export const getRandomPlayers = (
@@ -119,35 +161,30 @@ export const getRandomPlayers = (
   difficulty: Difficulty = 'Easy',
 ): { start: string; target: string } | null => {
   const data = getData(mode);
-
-  // Minimum distinct seasons required per difficulty
-  const minSeasons = difficulty === 'Easy' ? 10 : difficulty === 'Medium' ? 8 : 6;
-
-  // Pre-filter to eligible players only (avoids burning BFS on short careers)
-  const eligible = data.players.filter(p => careerYears(mode, p).size >= minSeasons);
+  const eligible = buildEligible(mode, difficulty);
   if (eligible.length < 2) return null;
 
-  // BFS depth cap for generation speed: we only care about paths ≤ 10 hops
   const BFS_CAP = 10;
 
-  for (let attempt = 0; attempt < 60; attempt++) {
+  const pick = () => {
     const i1 = Math.floor(Math.random() * eligible.length);
     let i2 = Math.floor(Math.random() * eligible.length);
     while (i2 === i1) i2 = Math.floor(Math.random() * eligible.length);
+    return [eligible[i1], eligible[i2]] as const;
+  };
 
-    const p1 = eligible[i1];
-    const p2 = eligible[i2];
-
-    const y1 = careerYears(mode, p1);
-    const y2 = careerYears(mode, p2);
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const [p1, p2] = pick();
+    const y1 = careerYears(data, p1);
+    const y2 = careerYears(data, p2);
     const overlap = careerOverlap(y1, y2);
 
-    // Career-overlap gate (fast check before BFS)
+    // Career-overlap gate (fast, before BFS)
     if (difficulty === 'Easy' && overlap < 3) continue;
     if (difficulty === 'Medium' && (overlap < 1 || overlap > 2)) continue;
     if (difficulty === 'Hard' && overlap > 0) continue;
 
-    // Degree-of-separation gate (BFS with depth cap)
+    // Degree gate (BFS with depth cap)
     const path = findShortestPath(mode, p1, p2, BFS_CAP);
     if (!path) continue;
 
@@ -158,16 +195,10 @@ export const getRandomPlayers = (
     return { start: p1, target: p2 };
   }
 
-  // Soft fallback: return a pair that at least satisfies the overlap rule
+  // Soft fallback: satisfy only the overlap rule (skip degree check)
   for (let attempt = 0; attempt < 30; attempt++) {
-    const i1 = Math.floor(Math.random() * eligible.length);
-    let i2 = Math.floor(Math.random() * eligible.length);
-    while (i2 === i1) i2 = Math.floor(Math.random() * eligible.length);
-
-    const p1 = eligible[i1];
-    const p2 = eligible[i2];
-    const overlap = careerOverlap(careerYears(mode, p1), careerYears(mode, p2));
-
+    const [p1, p2] = pick();
+    const overlap = careerOverlap(careerYears(data, p1), careerYears(data, p2));
     if (difficulty === 'Easy' && overlap >= 3) return { start: p1, target: p2 };
     if (difficulty === 'Medium' && overlap >= 1 && overlap <= 2) return { start: p1, target: p2 };
     if (difficulty === 'Hard' && overlap === 0) return { start: p1, target: p2 };

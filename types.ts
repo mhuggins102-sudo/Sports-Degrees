@@ -12,7 +12,7 @@ export interface PlayerNode {
     team: string;
     years: string;
   };
-  position?: string;    // e.g. "QB" (NFL only)
+  position?: string;    // e.g. "QB", "SS", "P"
   careerYears?: string; // e.g. "1999-2022"
 }
 
@@ -35,7 +35,9 @@ export interface TeammateValidationResponse {
 }
 
 export interface SolutionResponse {
-  path: PlayerNode[];
-  degrees: number;
+  optimalPath: PlayerNode[];
+  optimalDegrees: number;
+  wellKnownPath: PlayerNode[] | null;
+  wellKnownDegrees: number | null;
   explanation?: string;
 }

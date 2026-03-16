@@ -43,9 +43,9 @@ mlb_data = {
     "teamSeasons": mlb_team_seasons
 }
 
-# === NFL (unchanged) ===
+# === NFL: Modern data (1999-2025) via nfl_data_py ===
 import nfl_data_py as nfl
-print("✅ Processing NFL data...")
+print("✅ Processing NFL modern data (1999-2025)...")
 years = list(range(1999, 2026))
 rosters = nfl.import_seasonal_rosters(years)
 
@@ -72,6 +72,48 @@ for name, group in rosters.groupby("fullName"):
     pos_series = group["depth_chart_position"].dropna()
     if not pos_series.empty:
         nfl_player_positions[name] = pos_series.value_counts().index[0]
+
+# === NFL: Historical data (1966-1998) from pre-downloaded CSV ===
+hist_file = Path("./scripts/historical_nfl_rosters.csv")
+if hist_file.exists():
+    print("✅ Merging historical NFL data (1966-1998)...")
+    hist = pd.read_csv(hist_file, dtype={"season": int})
+    hist = hist[hist["season"] <= 1998]  # nfl_data_py is authoritative for 1999+
+
+    # Build historical playerSeasons and merge
+    for name, group in hist.groupby("player_name"):
+        if len(name.strip()) < 4:
+            continue
+        historical = [
+            {"team": str(row["team"]), "year": int(row["season"])}
+            for _, row in group.iterrows()
+        ]
+        if name in nfl_player_seasons:
+            # Prepend historical seasons before modern ones
+            nfl_player_seasons[name] = historical + nfl_player_seasons[name]
+        else:
+            nfl_player_seasons[name] = historical
+
+    # Build historical teamSeasons and merge
+    for (team, year), group in hist.groupby(["team", "season"]):
+        key = f"{team}-{int(year)}"
+        names = sorted(set(group["player_name"].dropna().tolist()))
+        if key in nfl_team_seasons:
+            nfl_team_seasons[key] = sorted(set(nfl_team_seasons[key] + names))
+        else:
+            nfl_team_seasons[key] = names
+
+    # Merge historical positions (only for players not already in modern data)
+    for name, group in hist.groupby("player_name"):
+        if name not in nfl_player_positions and len(name.strip()) >= 4:
+            pos_series = group["position"].dropna()
+            if not pos_series.empty:
+                nfl_player_positions[name] = pos_series.value_counts().index[0]
+
+    hist_players = hist["player_name"].nunique()
+    print(f"   Added {hist_players:,} historical players")
+else:
+    print("⚠️  No historical_nfl_rosters.csv found — run download_historical_nfl.py first")
 
 nfl_data = {
     "players": sorted(nfl_player_seasons.keys()),

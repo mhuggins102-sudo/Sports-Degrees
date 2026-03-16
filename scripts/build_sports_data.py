@@ -1,8 +1,92 @@
 import json
 from pathlib import Path
+from collections import defaultdict
 import pandas as pd
 
 print("🔄 Building offline MLB + NFL data...")
+
+# Position group mapping for disambiguating same-name NFL players
+POS_GROUPS = {
+    'QB': 'QB', 'RB': 'RB', 'FB': 'RB', 'WR': 'WR', 'TE': 'TE',
+    'OL': 'OL', 'OT': 'OL', 'OG': 'OL', 'C': 'OL', 'T': 'OL', 'G': 'OL',
+    'DL': 'DL', 'DE': 'DL', 'DT': 'DL', 'NT': 'DL',
+    'LB': 'LB', 'ILB': 'LB', 'OLB': 'LB', 'MLB': 'LB',
+    'DB': 'DB', 'CB': 'DB', 'S': 'DB', 'SS': 'DB', 'FS': 'DB',
+    'K': 'SPEC', 'P': 'SPEC', 'SPEC': 'SPEC', 'LS': 'SPEC',
+}
+
+
+def split_historical_by_position(name, entries):
+    """Split entries for a player name using position data when same-year conflicts exist.
+
+    entries: list of {'team': str, 'year': int, 'position': str}
+    Returns None if no split needed, or list of (label, seasons, primary_pos) tuples.
+    Each season in seasons is {'team': str, 'year': int}.
+    """
+    # Add position group to each entry
+    for e in entries:
+        e['pos_group'] = POS_GROUPS.get(e['position'], e.get('position', ''))
+
+    # Group entries by year, check for same-year position conflicts on different teams
+    by_year = defaultdict(list)
+    for e in entries:
+        by_year[e['year']].append(e)
+
+    has_conflict = False
+    for year, ents in by_year.items():
+        # Group by position group → teams
+        pg_teams = defaultdict(set)
+        for e in ents:
+            pg_teams[e['pos_group']].add(e['team'])
+        if len(pg_teams) <= 1:
+            continue
+        # Check if any two position groups appear on disjoint teams
+        pgs = list(pg_teams.items())
+        for i, (pg1, teams1) in enumerate(pgs):
+            for pg2, teams2 in pgs[i + 1:]:
+                if not (teams1 & teams2):
+                    has_conflict = True
+                    break
+            if has_conflict:
+                break
+        if has_conflict:
+            break
+
+    if not has_conflict:
+        return None  # no definitive conflicts, use existing gap-based logic
+
+    # Split entries by position group
+    by_pg = defaultdict(list)
+    for e in entries:
+        by_pg[e['pos_group']].append(e)
+
+    # When same-year position conflicts exist, keep each position group separate.
+    # Don't try to merge non-overlapping groups — they're likely different players too.
+    if len(by_pg) <= 1:
+        return None
+
+    clusters = {i: ents for i, (pg, ents) in enumerate(by_pg.items())}
+
+    # Build result: (debut_year, seasons, primary_position_group)
+    result = []
+    for root, ents in clusters.items():
+        debut = min(e['year'] for e in ents)
+        seasons = [{'team': e['team'], 'year': e['year']} for e in ents]
+        # Primary position: most common position group in this cluster
+        pg_counts = defaultdict(int)
+        for e in ents:
+            pg_counts[e['pos_group']] += 1
+        primary_pg = max(pg_counts, key=pg_counts.get)
+        result.append((debut, seasons, primary_pg))
+    result.sort(key=lambda x: x[0])
+
+    # Generate labels
+    if len(result) == 2 and result[1][0] - result[0][0] >= 15:
+        labels = [f"{name} Sr.", f"{name} Jr."]
+    else:
+        labels = [f"{name} ({r[0]})" for r in result]
+
+    return [(label, seasons, pg) for label, (_, seasons, pg) in zip(labels, result)]
 
 
 def disambiguate_names(id_col, name_col, debut_col, df):
@@ -19,7 +103,6 @@ def disambiguate_names(id_col, name_col, debut_col, df):
         id_info[pid] = (name, debut)
 
     # Find duplicate names
-    from collections import defaultdict
     name_to_ids = defaultdict(list)
     for pid, (name, debut) in id_info.items():
         name_to_ids[name].append((pid, debut))
@@ -144,88 +227,190 @@ if hist_file.exists():
     hist = hist[hist["season"] <= 1998]  # nfl_data_py is authoritative for 1999+
 
     # For historical data, we don't have unique player IDs.
-    # Group by name, detect collisions via career gap, and split.
-    hist_player_seasons_raw = {}
-    hist_positions_raw = {}
+    # Group by name, then split using position data and career gaps.
+    hist_entries_raw = {}  # name → list of {'team', 'year', 'position'}
     for name, group in hist.groupby("player_name"):
         if len(name.strip()) < 4:
             continue
-        seasons = [
-            {"team": str(row["team"]), "year": int(row["season"])}
+        entries = [
+            {"team": str(row["team"]), "year": int(row["season"]),
+             "position": str(row["position"]) if pd.notna(row.get("position")) else ""}
             for _, row in group.iterrows()
         ]
-        hist_player_seasons_raw[name] = seasons
-        pos_series = group["position"].dropna()
-        if not pos_series.empty:
-            hist_positions_raw[name] = pos_series.value_counts().index[0]
+        hist_entries_raw[name] = entries
 
-    # Split historical names with career gaps > 5 years into separate entries
+    # Phase 1: Position-aware splitting (handles same-year conflicts)
+    # Phase 2: Gap-based splitting for remaining names
     hist_player_seasons = {}
     hist_player_positions = {}
-    for name, seasons in hist_player_seasons_raw.items():
-        years_sorted = sorted(set(s["year"] for s in seasons))
-        # Check for gaps
-        split_points = []
-        for i in range(1, len(years_sorted)):
-            if years_sorted[i] - years_sorted[i - 1] > 5:
-                split_points.append(i)
+    pos_split_count = 0
 
-        if not split_points:
-            hist_player_seasons[name] = seasons
-            if name in hist_positions_raw:
-                hist_player_positions[name] = hist_positions_raw[name]
+    for name, entries in hist_entries_raw.items():
+        pos_result = split_historical_by_position(name, entries)
+        if pos_result:
+            # Position-based split succeeded
+            pos_split_count += len(pos_result)
+            for label, seasons, primary_pg in pos_result:
+                # Also apply gap detection within each position cluster
+                years_sorted = sorted(set(s["year"] for s in seasons))
+                split_points = []
+                for i in range(1, len(years_sorted)):
+                    if years_sorted[i] - years_sorted[i - 1] > 5:
+                        split_points.append(i)
+
+                if not split_points:
+                    hist_player_seasons[label] = seasons
+                    hist_player_positions[label] = primary_pg
+                else:
+                    boundaries = [0] + split_points + [len(years_sorted)]
+                    sub_clusters = []
+                    for j in range(len(boundaries) - 1):
+                        cluster_years = set(years_sorted[boundaries[j]:boundaries[j + 1]])
+                        cluster_seasons = [s for s in seasons if s["year"] in cluster_years]
+                        debut = min(cluster_years)
+                        sub_clusters.append((debut, cluster_seasons))
+
+                    if len(sub_clusters) == 1:
+                        hist_player_seasons[label] = sub_clusters[0][1]
+                        hist_player_positions[label] = primary_pg
+                    else:
+                        for k, (debut, cs) in enumerate(sub_clusters):
+                            sub_label = f"{label.split(' (')[0]} ({debut})" if "(" in label else f"{label} ({debut})"
+                            hist_player_seasons[sub_label] = cs
+                            hist_player_positions[sub_label] = primary_pg
         else:
-            # Split into clusters
-            boundaries = [0] + split_points + [len(years_sorted)]
-            clusters = []
-            for j in range(len(boundaries) - 1):
-                cluster_years = set(years_sorted[boundaries[j]:boundaries[j + 1]])
-                cluster_seasons = [s for s in seasons if s["year"] in cluster_years]
-                debut = min(cluster_years)
-                clusters.append((debut, cluster_seasons))
+            # No position conflicts — use gap-based splitting with position awareness
+            seasons = [{"team": e["team"], "year": e["year"]} for e in entries]
+            years_sorted = sorted(set(s["year"] for s in seasons))
+            # Determine primary position
+            pos_counts = defaultdict(int)
+            for e in entries:
+                if e["position"]:
+                    pos_counts[e["position"]] += 1
+            primary_pos = max(pos_counts, key=pos_counts.get) if pos_counts else ""
 
-            if len(clusters) == 2 and clusters[1][0] - clusters[0][0] >= 15:
-                labels = [f"{name} Sr.", f"{name} Jr."]
+            # Build year → dominant position group mapping for position-aware gap detection
+            year_pg = {}
+            for e in entries:
+                pg = POS_GROUPS.get(e.get("position", ""), "")
+                if pg:
+                    year_pg.setdefault(e["year"], defaultdict(int))
+                    year_pg[e["year"]][pg] += 1
+            year_primary_pg = {}
+            for yr, counts in year_pg.items():
+                year_primary_pg[yr] = max(counts, key=counts.get)
+
+            split_points = []
+            for i in range(1, len(years_sorted)):
+                gap = years_sorted[i] - years_sorted[i - 1]
+                # Standard gap threshold
+                if gap > 5:
+                    split_points.append(i)
+                # Lower threshold when position group changes across the gap
+                elif gap >= 3:
+                    pg_before = year_primary_pg.get(years_sorted[i - 1], "")
+                    pg_after = year_primary_pg.get(years_sorted[i], "")
+                    if pg_before and pg_after and pg_before != pg_after:
+                        split_points.append(i)
+
+            if not split_points:
+                hist_player_seasons[name] = seasons
+                if primary_pos:
+                    hist_player_positions[name] = primary_pos
             else:
-                labels = [f"{name} ({c[0]})" for c in clusters]
+                boundaries = [0] + split_points + [len(years_sorted)]
+                clusters = []
+                for j in range(len(boundaries) - 1):
+                    cluster_years = set(years_sorted[boundaries[j]:boundaries[j + 1]])
+                    cluster_seasons = [s for s in seasons if s["year"] in cluster_years]
+                    debut = min(cluster_years)
+                    clusters.append((debut, cluster_seasons))
 
-            for label, (_, cluster_seasons) in zip(labels, clusters):
-                hist_player_seasons[label] = cluster_seasons
-                if name in hist_positions_raw:
-                    hist_player_positions[label] = hist_positions_raw[name]
+                if len(clusters) == 2 and clusters[1][0] - clusters[0][0] >= 15:
+                    labels = [f"{name} Sr.", f"{name} Jr."]
+                else:
+                    labels = [f"{name} ({c[0]})" for c in clusters]
+
+                for label, (_, cluster_seasons) in zip(labels, clusters):
+                    hist_player_seasons[label] = cluster_seasons
+                    if primary_pos:
+                        hist_player_positions[label] = primary_pos
+
+    print(f"   Position-aware splitting created {pos_split_count} entries from same-name players")
+
+    # Helper: extract base name from a disambiguated label
+    def base_name(label):
+        if label.endswith(" Sr.") or label.endswith(" Jr."):
+            return label[:-4]
+        if " (" in label and label.endswith(")"):
+            return label[:label.rindex(" (")]
+        return label
 
     # Merge historical into modern, tracking renames so we can update teamSeasons
     modern_renames = {}  # old_name → new_name for players renamed during merge
-    for name, seasons in hist_player_seasons.items():
+    for name, seasons in list(hist_player_seasons.items()):
+        hist_years = set(s["year"] for s in seasons)
+        hist_pos = hist_player_positions.get(name, "")
+        hist_pg = POS_GROUPS.get(hist_pos, hist_pos)
+        bname = base_name(name)
+
+        # Try exact name match first, then base name match for disambiguated entries
+        modern_match = None
         if name in nfl_player_seasons:
-            # Same name exists in modern — check if it's the same player (careers overlap/adjacent)
-            modern_years = set(s["year"] for s in nfl_player_seasons[name])
-            hist_years = set(s["year"] for s in seasons)
-            gap = min(modern_years) - max(hist_years) if modern_years and hist_years else 999
-            if gap <= 5:
-                # Same player spanning eras — merge
-                nfl_player_seasons[name] = seasons + nfl_player_seasons[name]
+            modern_match = name
+        elif bname != name and bname in nfl_player_seasons:
+            modern_match = bname
+
+        if modern_match:
+            modern_years = set(s["year"] for s in nfl_player_seasons[modern_match])
+            # Compute gap regardless of which set comes first
+            if modern_years and hist_years:
+                gap = max(min(modern_years) - max(hist_years),
+                          min(hist_years) - max(modern_years))
+            else:
+                gap = 999
+
+            # Check both modern and historical position dicts (hist entries added earlier
+            # in this loop won't have nfl_player_positions set yet)
+            modern_pos = nfl_player_positions.get(modern_match, "") or hist_player_positions.get(modern_match, "")
+            modern_pg = POS_GROUPS.get(modern_pos, modern_pos)
+            pos_compatible = (not hist_pg or not modern_pg or hist_pg == modern_pg)
+
+            # Never merge entries that were already disambiguated (Jr./Sr./year suffix)
+            already_disambiguated = (bname != name)
+
+            if gap <= 5 and pos_compatible and not already_disambiguated:
+                # Same player spanning eras — merge, using the modern name
+                nfl_player_seasons[modern_match] = seasons + nfl_player_seasons[modern_match]
             else:
                 # Different player — disambiguate
                 hist_debut = min(hist_years)
                 modern_debut = min(modern_years)
-                if f"{name} Sr." not in nfl_player_seasons and hist_debut + 15 <= modern_debut:
+                # Use original historical label if already disambiguated
+                if bname != name:
+                    hist_label = name
+                elif f"{name} Sr." not in nfl_player_seasons and hist_debut + 15 <= modern_debut:
                     hist_label = f"{name} Sr."
                     modern_label = f"{name} Jr."
+                    nfl_player_seasons[modern_label] = nfl_player_seasons.pop(modern_match)
+                    if modern_match in nfl_player_positions:
+                        nfl_player_positions[modern_label] = nfl_player_positions.pop(modern_match)
+                    modern_renames[modern_match] = modern_label
                 else:
-                    hist_label = f"{name} ({hist_debut})"
-                    modern_label = f"{name} ({modern_debut})"
-                # Rename modern entry
-                nfl_player_seasons[modern_label] = nfl_player_seasons.pop(name)
-                if name in nfl_player_positions:
-                    nfl_player_positions[modern_label] = nfl_player_positions.pop(name)
-                modern_renames[name] = modern_label
+                    hist_label = f"{name} ({hist_debut})" if bname == name else name
+                    modern_label = f"{modern_match} ({modern_debut})"
+                    nfl_player_seasons[modern_label] = nfl_player_seasons.pop(modern_match)
+                    if modern_match in nfl_player_positions:
+                        nfl_player_positions[modern_label] = nfl_player_positions.pop(modern_match)
+                    modern_renames[modern_match] = modern_label
                 # Add historical entry
                 nfl_player_seasons[hist_label] = seasons
                 if name in hist_player_positions:
                     nfl_player_positions[hist_label] = hist_player_positions[name]
         else:
             nfl_player_seasons[name] = seasons
+            if name in hist_player_positions:
+                nfl_player_positions[name] = hist_player_positions[name]
 
     # Apply renames to modern teamSeasons
     if modern_renames:

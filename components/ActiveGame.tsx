@@ -163,10 +163,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // Career years are shown on a card as soon as the NEXT card exists,
-  // except in Easy mode where they show immediately on every card.
+  // Easy: career years always visible. Medium: shown after next guess. Hard: hidden.
   const showCareerYears = (idx: number) =>
-    difficulty === 'Easy' || idx < chain.length - 1;
+    difficulty === 'Easy'
+      ? true
+      : difficulty === 'Medium'
+        ? idx < chain.length - 1
+        : false;
 
   const accentActive = isNFL ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white';
   const accentHover  = isNFL ? 'hover:bg-blue-700' : 'hover:bg-emerald-700';

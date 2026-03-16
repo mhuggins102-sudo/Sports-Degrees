@@ -85,6 +85,7 @@ const findConnectionFull = (
 
 // maxDepth limits how deep BFS goes; use Infinity for gameplay, a small
 // number (e.g. 10) for fast challenge generation.
+// maxVisits caps total nodes visited to avoid freezing on dense graphs (0 = unlimited).
 // When wellKnownOnly is true, intermediate nodes (not start/target) must be well-known.
 export const findShortestPath = (
   mode: GameMode,
@@ -92,6 +93,7 @@ export const findShortestPath = (
   target: string,
   maxDepth = Infinity,
   wellKnownOnly = false,
+  maxVisits = 0,
 ): PlayerNode[] | null => {
   const data = getData(mode);
   if (!data.playerSeasons[start] || !data.playerSeasons[target]) return null;
@@ -103,11 +105,13 @@ export const findShortestPath = (
   const visited = new Set([start]);
   const parent = new Map<string, string>(); // neigh → prev player name
   let head = 0; // index-based queue for O(1) dequeue
+  let found = false;
 
   while (head < queue.length) {
+    if (maxVisits > 0 && head >= maxVisits) break;
     const { player: current, depth } = queue[head++];
 
-    if (current === target) break;
+    if (current === target) { found = true; break; }
     if (depth >= maxDepth) continue;
 
     const mySeasons = data.playerSeasons[current];
@@ -131,7 +135,7 @@ export const findShortestPath = (
     }
   }
 
-  if (!parent.has(target) && start !== target) return null;
+  if (!found && !parent.has(target)) return null;
 
   const path: PlayerNode[] = [];
   let curr = target;

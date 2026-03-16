@@ -189,12 +189,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     setShowHintMenu(false);
     const effectiveMode = overrideMode ?? hintMode;
     const useWellKnown = effectiveMode === 'wellKnown';
-    const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown);
+    const HINT_BUDGET = 500_000;
+    const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown, HINT_BUDGET);
     if (path && path.length > 1) {
       submitGuess(path[1].name);
     } else if (useWellKnown) {
       // Fall back to optimal if well-known path not found
-      const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10);
+      const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10, false, HINT_BUDGET);
       if (optPath && optPath.length > 1) {
         submitGuess(optPath[1].name);
       } else {
@@ -211,15 +212,17 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     setLoadingSolution(true);
     // Use setTimeout so the loading spinner renders before BFS blocks the thread
     setTimeout(() => {
-      // Cap BFS depth: challenges max at degree 7, so 10 is generous for optimal
-      const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10);
-      const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true);
+      // Cap BFS depth and visits to avoid freezing on dense NFL graphs.
+      // 500K visits is enough to explore ~3 degrees in NFL; covers most paths.
+      const VISIT_BUDGET = 500_000;
+      const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10, false, VISIT_BUDGET);
+      const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
       setSolution({
         optimalPath: optPath ?? [],
         optimalDegrees: optPath ? optPath.length - 1 : 0,
         wellKnownPath: wkPath,
         wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
-        explanation: optPath ? undefined : 'Could not find a path within 10 degrees.',
+        explanation: optPath ? undefined : 'Could not find a short path. The optimal route may require deep exploration.',
       });
       setLoadingSolution(false);
     }, 50);
@@ -329,7 +332,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
         {/* Ghost target card */}
         {!won && (
-          <div className="opacity-50 pointer-events-none">
+          <div className="opacity-50">
             <div className="flex flex-col items-center my-1">
               <div className="h-5 w-px border-l-2 border-dashed border-slate-500" />
             </div>
@@ -339,6 +342,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               mode={mode}
               isTarget
               showCareerYears={true}
+              onCardClick={() => setPopupPlayer(targetPlayer)}
             />
           </div>
         )}

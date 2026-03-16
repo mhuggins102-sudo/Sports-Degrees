@@ -189,20 +189,28 @@ for pid, group in df.groupby("playerID"):
             primary = "OF"
         mlb_player_positions[display] = primary
 
-    # Well-known threshold:
-    #   Position players: career G_all (non-pitching) >= 1250 (~5000 PA)
-    #   Pitchers: career GS >= 150 OR career G_p >= 500
+    # Well-known threshold (era-adjusted):
+    #   Post-1990 debuts: batters ≥1250 G (~5000 PA), pitchers ≥150 GS or ≥500 G
+    #   Pre-1990 debuts: batters ≥1875 G (~7500 PA), pitchers ≥225 GS or ≥750 G
     career_gp = int(group["G_p"].fillna(0).astype(int).sum())
     career_gs = int(group["GS"].fillna(0).astype(int).sum())
     career_g_all = int(group["G_all"].fillna(0).astype(int).sum())
     is_pitcher = (career_gp > career_g_all * 0.5) if career_g_all > 0 else False
 
+    debut_yr = group["debutYear"].dropna().iloc[0] if not group["debutYear"].dropna().empty else "9999"
+    is_pre_1990 = int(str(debut_yr)[:4]) < 1990
+
     if is_pitcher:
-        well_known = career_gs >= 150 or career_gp >= 500
+        if is_pre_1990:
+            well_known = career_gs >= 225 or career_gp >= 750
+        else:
+            well_known = career_gs >= 150 or career_gp >= 500
     else:
-        # Non-pitcher games: approximate as career games minus pitching games
         career_batting_games = career_g_all - career_gp
-        well_known = career_batting_games >= 1250
+        if is_pre_1990:
+            well_known = career_batting_games >= 1875  # ~7500 PA
+        else:
+            well_known = career_batting_games >= 1250  # ~5000 PA
 
     if well_known:
         mlb_player_well_known[display] = True

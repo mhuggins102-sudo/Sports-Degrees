@@ -22,7 +22,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
   const iconColor     = isNFL ? 'text-sky-400'                : 'text-emerald-400';
   const labelColor    = isNFL ? 'text-sky-300'                : 'text-emerald-300';
   const connColor     = isNFL ? 'bg-sky-800'                  : 'bg-emerald-800';
-  const connBorder    = isNFL ? 'border-sky-800 text-sky-400' : 'border-emerald-800 text-emerald-400';
+  const connBorder    = isNFL ? 'border-sky-700 text-sky-300' : 'border-emerald-700 text-emerald-300';
 
   const activeRing = isEnd && !isTarget
     ? 'ring-2 ring-offset-1 ring-offset-slate-900 ring-yellow-500 scale-[1.02] shadow-lg shadow-yellow-900/20'
@@ -40,7 +40,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
           <div className={`h-3 w-px ${connColor}`} />
           <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border bg-slate-900 ${connBorder}`}>
             {node.connectionToPrev.team}
-            <span className="opacity-40 mx-1">|</span>
+            <span className="opacity-50 mx-1">|</span>
             {node.connectionToPrev.years}
           </div>
           <div className={`h-3 w-px ${connColor}`} />
@@ -62,7 +62,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
 
           {/* Name + meta */}
           <div className="min-w-0 flex-1">
-            <p className={`text-[10px] font-semibold uppercase tracking-wide opacity-60 ${labelColor}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide ${labelColor}`}>
               {isStart ? 'Start' : isTarget ? 'Target' : `Link #${index}`}
             </p>
 
@@ -80,7 +80,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
 
             {/* Career years — shown when showCareerYears is true */}
             {showCareerYears && node.careerYears && (
-              <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+              <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
                 {node.careerYears}
               </p>
             )}

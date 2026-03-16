@@ -145,7 +145,10 @@ people = pd.read_csv(people_file, usecols=["playerID", "nameFirst", "nameLast", 
 people["fullName"] = (people["nameFirst"].fillna("") + " " + people["nameLast"].fillna("")).str.strip()
 people = people[people["fullName"].str.len() > 3]
 
-appearances = pd.read_csv(appearances_file, usecols=["playerID", "yearID", "teamID"])
+appearances = pd.read_csv(appearances_file, usecols=[
+    "playerID", "yearID", "teamID", "G_all", "GS",
+    "G_p", "G_c", "G_1b", "G_2b", "G_3b", "G_ss", "G_lf", "G_cf", "G_rf", "G_of", "G_dh",
+])
 df = appearances.merge(people[["playerID", "fullName", "debut"]], on="playerID")
 df = df.dropna(subset=["fullName", "yearID", "teamID"]).copy()
 
@@ -157,6 +160,55 @@ mlb_id_to_name = disambiguate_names("playerID", "fullName", "debutYear", df)
 df["displayName"] = df["playerID"].map(mlb_id_to_name)
 dupes = sum(1 for v in mlb_id_to_name.values() if "Jr." in v or "Sr." in v or "(" in v)
 print(f"   Disambiguated {dupes} players with duplicate names")
+
+# Determine primary position for each player from Appearances data
+MLB_POS_COLS = {
+    "G_p": "P", "G_c": "C", "G_1b": "1B", "G_2b": "2B",
+    "G_3b": "3B", "G_ss": "SS", "G_lf": "LF", "G_cf": "CF",
+    "G_rf": "RF", "G_of": "OF", "G_dh": "DH",
+}
+mlb_player_positions = {}
+mlb_player_well_known = {}
+
+for pid, group in df.groupby("playerID"):
+    display = mlb_id_to_name.get(pid)
+    if not display:
+        continue
+
+    # Sum games at each position across career
+    pos_totals = {}
+    for col, pos_label in MLB_POS_COLS.items():
+        total = group[col].fillna(0).astype(int).sum()
+        if total > 0:
+            pos_totals[pos_label] = total
+
+    if pos_totals:
+        primary = max(pos_totals, key=pos_totals.get)
+        # Consolidate OF subtypes → OF if OF is dominant
+        if primary in ("LF", "CF", "RF") and pos_totals.get("OF", 0) > pos_totals[primary]:
+            primary = "OF"
+        mlb_player_positions[display] = primary
+
+    # Well-known threshold:
+    #   Position players: career G_all (non-pitching) >= 1250 (~5000 PA)
+    #   Pitchers: career GS >= 150 OR career G_p >= 500
+    career_gp = int(group["G_p"].fillna(0).astype(int).sum())
+    career_gs = int(group["GS"].fillna(0).astype(int).sum())
+    career_g_all = int(group["G_all"].fillna(0).astype(int).sum())
+    is_pitcher = (career_gp > career_g_all * 0.5) if career_g_all > 0 else False
+
+    if is_pitcher:
+        well_known = career_gs >= 150 or career_gp >= 500
+    else:
+        # Non-pitcher games: approximate as career games minus pitching games
+        career_batting_games = career_g_all - career_gp
+        well_known = career_batting_games >= 1250
+
+    if well_known:
+        mlb_player_well_known[display] = True
+
+print(f"   Positions assigned for {len(mlb_player_positions):,} MLB players")
+print(f"   {len(mlb_player_well_known):,} MLB players marked as well-known")
 
 mlb_player_seasons = {}
 for pid, group in df.groupby("playerID"):
@@ -171,10 +223,15 @@ for (team, year), group in df.groupby(["teamID", "yearID"]):
     key = f"{team}-{int(year)}"
     mlb_team_seasons[key] = sorted(set(group["displayName"].tolist()))
 
+# Build well-known player list (sorted names)
+mlb_well_known_list = sorted(mlb_player_well_known.keys())
+
 mlb_data = {
     "players": sorted(mlb_player_seasons.keys()),
     "playerSeasons": mlb_player_seasons,
-    "teamSeasons": mlb_team_seasons
+    "teamSeasons": mlb_team_seasons,
+    "playerPositions": mlb_player_positions,
+    "wellKnown": mlb_well_known_list,
 }
 
 # === NFL: Modern data (1999-2025) via nfl_data_py ===
@@ -456,11 +513,31 @@ if hist_file.exists():
 else:
     print("⚠️  No historical_nfl_rosters.csv found — run download_historical_nfl.py first")
 
+# === NFL: Well-known player determination (career length by position) ===
+NFL_WELL_KNOWN_YEARS = {
+    "QB": 8, "RB": 8, "FB": 8, "WR": 8, "TE": 7,
+    "LB": 7, "ILB": 7, "OLB": 7, "MLB": 7,
+    "DB": 7, "CB": 7, "S": 7, "SS": 7, "FS": 7,
+    "OL": 6, "OT": 6, "OG": 6, "C": 6, "T": 6, "G": 6,
+    "DL": 6, "DE": 6, "DT": 6, "NT": 6,
+    "K": 10, "P": 10, "SPEC": 10, "LS": 10,
+}
+nfl_well_known = {}
+for name, seasons in nfl_player_seasons.items():
+    career_years = len(set(s["year"] for s in seasons))
+    pos = nfl_player_positions.get(name, "")
+    threshold = NFL_WELL_KNOWN_YEARS.get(pos, 7)
+    if career_years >= threshold:
+        nfl_well_known[name] = True
+nfl_well_known_list = sorted(nfl_well_known.keys())
+print(f"   {len(nfl_well_known_list):,} NFL players marked as well-known")
+
 nfl_data = {
     "players": sorted(nfl_player_seasons.keys()),
     "playerSeasons": nfl_player_seasons,
     "teamSeasons": nfl_team_seasons,
-    "playerPositions": nfl_player_positions
+    "playerPositions": nfl_player_positions,
+    "wellKnown": nfl_well_known_list,
 }
 
 # === Save compact JSONs ===

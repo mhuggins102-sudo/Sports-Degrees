@@ -9,8 +9,8 @@ interface GameSetupProps {
 
 const DIFFICULTY_DESC: Record<Difficulty, string> = {
   Easy:   'Household names • 2–3 degrees',
-  Medium: 'Deep roster • 3–4 degrees',
-  Hard:   'Film room • 4–6 degrees',
+  Medium: 'Household names • 3–5 degrees',
+  Hard:   'Household names • 4–7 degrees',
 };
 
 const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
@@ -22,23 +22,25 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
   const handleStart = () => {
     setGenerating(true);
     setError(null);
-    // Defer the CPU-intensive BFS so React can paint the loading state first
-    setTimeout(() => {
-      const result = getRandomPlayers(mode, difficulty);
-      if (result) {
-        onStart(mode, result.start, result.target, difficulty);
-      } else {
-        setError('Could not generate a valid challenge. Please try again.');
-        setGenerating(false);
-      }
-    }, 30);
+    // Use requestAnimationFrame + setTimeout to reliably let the browser
+    // paint the loading state before the CPU-intensive BFS blocks the thread
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const result = getRandomPlayers(mode, difficulty);
+        if (result) {
+          onStart(mode, result.start, result.target, difficulty);
+        } else {
+          setError('Could not generate a valid challenge. Please try again.');
+          setGenerating(false);
+        }
+      }, 16);
+    });
   };
 
   const isNFL = mode === GameMode.NFL;
-  const accent = isNFL ? 'blue' : 'emerald';
 
   return (
-    <div className="w-full max-w-lg bg-slate-900 rounded-2xl shadow-xl border border-slate-800">
+    <div className="w-full max-w-lg bg-slate-900 rounded-2xl shadow-xl border border-slate-700">
       <div className="p-8">
 
         {/* Title */}
@@ -49,7 +51,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
               Degrees
             </span>
           </h1>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-300 text-sm">
             We pick the players — you find the connection.
           </p>
         </div>
@@ -62,10 +64,10 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
               relative p-5 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-2
               ${isNFL
                 ? 'border-blue-600 bg-blue-900/20 text-blue-400 ring-2 ring-blue-900'
-                : 'border-slate-800 bg-slate-900 text-slate-500 hover:border-slate-700 hover:bg-slate-800'}
+                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:bg-slate-800'}
             `}
           >
-            <Trophy className={`w-9 h-9 ${isNFL ? 'text-blue-500' : 'text-slate-600'}`} />
+            <Trophy className={`w-9 h-9 ${isNFL ? 'text-blue-500' : 'text-slate-500'}`} />
             <span className="font-black text-xl">NFL</span>
             {isNFL && (
               <span className="absolute top-2 right-2 flex h-3 w-3">
@@ -81,10 +83,10 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
               relative p-5 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-2
               ${!isNFL
                 ? 'border-emerald-600 bg-emerald-900/20 text-emerald-400 ring-2 ring-emerald-900'
-                : 'border-slate-800 bg-slate-900 text-slate-500 hover:border-slate-700 hover:bg-slate-800'}
+                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:bg-slate-800'}
             `}
           >
-            <Club className={`w-9 h-9 ${!isNFL ? 'text-emerald-500' : 'text-slate-600'}`} />
+            <Club className={`w-9 h-9 ${!isNFL ? 'text-emerald-500' : 'text-slate-500'}`} />
             <span className="font-black text-xl">MLB</span>
             {!isNFL && (
               <span className="absolute top-2 right-2 flex h-3 w-3">
@@ -97,7 +99,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
 
         {/* Difficulty */}
         <div className="mb-6">
-          <div className={`flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 mb-2`}>
+          <div className={`flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-700 mb-2`}>
             {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map(d => (
               <button
                 key={d}
@@ -108,14 +110,14 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
                     ? isNFL
                       ? 'bg-blue-600 text-white shadow'
                       : 'bg-emerald-600 text-white shadow'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}
                 `}
               >
                 {d}
               </button>
             ))}
           </div>
-          <p className="text-center text-xs text-slate-500 leading-relaxed">
+          <p className="text-center text-xs text-slate-400 leading-relaxed">
             {DIFFICULTY_DESC[difficulty]}
           </p>
         </div>
@@ -154,7 +156,7 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
         </button>
 
         {/* Footer */}
-        <p className="mt-4 text-center text-xs text-slate-600 flex items-center justify-center gap-1.5">
+        <p className="mt-4 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
           <Database className="w-3 h-3" />
           {getPlayerCount(mode).toLocaleString()} players loaded offline
         </p>

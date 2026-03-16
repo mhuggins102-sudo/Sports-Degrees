@@ -8,7 +8,8 @@ export interface SportData {
   players: string[];
   playerSeasons: Record<string, Array<{ team: string; year: number }>>;
   teamSeasons: Record<string, string[]>;
-  playerPositions?: Record<string, string>; // NFL only
+  playerPositions?: Record<string, string>;
+  wellKnown?: string[]; // sorted list of well-known player names
 }
 
 const mlbData: SportData = mlbDataRaw as SportData;
@@ -16,6 +17,15 @@ const nflData: SportData = nflDataRaw as SportData;
 
 const getData = (mode: GameMode): SportData =>
   mode === GameMode.MLB ? mlbData : nflData;
+
+// Pre-compute well-known sets for O(1) lookup
+const mlbWellKnownSet = new Set(mlbData.wellKnown ?? []);
+const nflWellKnownSet = new Set(nflData.wellKnown ?? []);
+const getWellKnownSet = (mode: GameMode): Set<string> =>
+  mode === GameMode.MLB ? mlbWellKnownSet : nflWellKnownSet;
+
+export const isWellKnown = (mode: GameMode, player: string): boolean =>
+  getWellKnownSet(mode).has(player);
 
 // Fuzzy search setup (one per mode)
 const mlbFuse = new Fuse(mlbData.players, { threshold: 0.3, minMatchCharLength: 2 });
@@ -74,14 +84,18 @@ const findConnectionFull = (
 
 // maxDepth limits how deep BFS goes; use Infinity for gameplay, a small
 // number (e.g. 10) for fast challenge generation.
+// When wellKnownOnly is true, intermediate nodes (not start/target) must be well-known.
 export const findShortestPath = (
   mode: GameMode,
   start: string,
   target: string,
   maxDepth = Infinity,
+  wellKnownOnly = false,
 ): PlayerNode[] | null => {
   const data = getData(mode);
   if (!data.playerSeasons[start] || !data.playerSeasons[target]) return null;
+
+  const wkSet = wellKnownOnly ? getWellKnownSet(mode) : null;
 
   type QItem = { player: string; depth: number };
   const queue: QItem[] = [{ player: start, depth: 0 }];
@@ -106,6 +120,8 @@ export const findShortestPath = (
 
     for (const neigh of neighbors) {
       if (!visited.has(neigh)) {
+        // In well-known mode, only allow well-known intermediates (target is always allowed)
+        if (wkSet && neigh !== target && !wkSet.has(neigh)) continue;
         visited.add(neigh);
         queue.push({ player: neigh, depth: depth + 1 });
         parent.set(neigh, current);
@@ -180,31 +196,34 @@ const getFameScores = (mode: GameMode): Map<string, number> => {
   return scores;
 };
 
-// Fame thresholds per mode and difficulty.
-// MLB thresholds are lower because MLB data has no position bonus (worth 1-3 pts in NFL).
-const FAME_THRESHOLD: Record<GameMode, Record<Difficulty, number>> = {
-  [GameMode.NFL]: { Easy: 15, Medium: 8, Hard: 4 },
-  [GameMode.MLB]: { Easy: 12, Medium: 6, Hard: 3 },
-};
-const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
-  Easy: [2, 3],
-  Medium: [3, 4],
-  Hard: [4, 6],
+// Start/target players must be household names: always use the well-known pool
+// and a high fame threshold. Difficulty only controls the degree range.
+const ENDPOINT_FAME_THRESHOLD: Record<GameMode, number> = {
+  [GameMode.NFL]: 15,
+  [GameMode.MLB]: 12,
 };
 
-// Builds the eligible player list by fame score
-const buildEligible = (mode: GameMode, difficulty: Difficulty): string[] => {
-  const data = getData(mode);
+const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
+  Easy: [2, 3],
+  Medium: [3, 5],
+  Hard: [4, 7],
+};
+
+// Builds the eligible endpoint list: must be well-known AND have high fame score
+const buildEndpointEligible = (mode: GameMode): string[] => {
   const scores = getFameScores(mode);
-  const threshold = FAME_THRESHOLD[mode][difficulty];
-  return data.players.filter(p => (scores.get(p) ?? 0) >= threshold);
+  const threshold = ENDPOINT_FAME_THRESHOLD[mode];
+  const wkSet = getWellKnownSet(mode);
+  return getData(mode).players.filter(p =>
+    wkSet.has(p) && (scores.get(p) ?? 0) >= threshold
+  );
 };
 
 export const getRandomPlayers = (
   mode: GameMode,
   difficulty: Difficulty = 'Easy',
 ): { start: string; target: string } | null => {
-  const eligible = buildEligible(mode, difficulty);
+  const eligible = buildEndpointEligible(mode);
   if (eligible.length < 2) return null;
 
   const BFS_CAP = 10;
@@ -218,7 +237,7 @@ export const getRandomPlayers = (
   };
 
   // Primary: find pairs matching the target degree range
-  for (let attempt = 0; attempt < 60; attempt++) {
+  for (let attempt = 0; attempt < 80; attempt++) {
     const [p1, p2] = pick();
 
     const path = findShortestPath(mode, p1, p2, BFS_CAP);
@@ -231,7 +250,7 @@ export const getRandomPlayers = (
   }
 
   // Soft fallback: accept any connected pair from the eligible pool
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 40; attempt++) {
     const [p1, p2] = pick();
     const path = findShortestPath(mode, p1, p2, BFS_CAP);
     if (path && path.length - 1 >= 2) return { start: p1, target: p2 };

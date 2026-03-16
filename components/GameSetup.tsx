@@ -8,9 +8,9 @@ interface GameSetupProps {
 }
 
 const DIFFICULTY_DESC: Record<Difficulty, string> = {
-  Easy:   'Same generation • careers overlap 3+ yrs • 2–4 degrees',
-  Medium: 'Near misses • careers overlap 1–2 yrs • 3+ degrees',
-  Hard:   'Different eras • no career overlap • 3+ degrees',
+  Easy:   'Household names • 2–3 degrees',
+  Medium: 'Deep roster • 3–4 degrees',
+  Hard:   'Film room • 4–6 degrees',
 };
 
 const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {

@@ -142,22 +142,10 @@ const POSITION_BONUS: Record<string, number> = {
 const careerYears = (data: SportData, player: string): Set<number> =>
   new Set((data.playerSeasons[player] ?? []).map(s => s.year));
 
-// Detect likely name collisions: career gaps > 5 years suggest merged records
-const hasNameCollision = (data: SportData, player: string): boolean => {
-  const years = Array.from(careerYears(data, player)).sort((a, b) => a - b);
-  for (let i = 1; i < years.length; i++) {
-    if (years[i] - years[i - 1] > 5) return true;
-  }
-  return false;
-};
-
 // Compute fame score for a player: careerLength + positionBonus + teammateBonus
 const computeFameScore = (data: SportData, player: string): number => {
   const seasons = data.playerSeasons[player] ?? [];
   if (seasons.length === 0) return 0;
-
-  // Name collisions get capped to avoid inflated scores
-  if (hasNameCollision(data, player)) return Math.min(7, seasons.length);
 
   const career = careerYears(data, player).size;
 
@@ -192,8 +180,12 @@ const getFameScores = (mode: GameMode): Map<string, number> => {
   return scores;
 };
 
-// Fame thresholds and degree ranges per difficulty
-const FAME_THRESHOLD: Record<Difficulty, number> = { Easy: 15, Medium: 8, Hard: 4 };
+// Fame thresholds per mode and difficulty.
+// MLB thresholds are lower because MLB data has no position bonus (worth 1-3 pts in NFL).
+const FAME_THRESHOLD: Record<GameMode, Record<Difficulty, number>> = {
+  [GameMode.NFL]: { Easy: 15, Medium: 8, Hard: 4 },
+  [GameMode.MLB]: { Easy: 12, Medium: 6, Hard: 3 },
+};
 const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
   Easy: [2, 3],
   Medium: [3, 4],
@@ -204,7 +196,7 @@ const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
 const buildEligible = (mode: GameMode, difficulty: Difficulty): string[] => {
   const data = getData(mode);
   const scores = getFameScores(mode);
-  const threshold = FAME_THRESHOLD[difficulty];
+  const threshold = FAME_THRESHOLD[mode][difficulty];
   return data.players.filter(p => (scores.get(p) ?? 0) >= threshold);
 };
 

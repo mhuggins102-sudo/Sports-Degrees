@@ -210,13 +210,55 @@ const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
 };
 
 // Builds the eligible endpoint list: must be well-known AND have high fame score
+// Cached per mode to avoid recomputing on every challenge generation.
+const eligibleCache = new Map<GameMode, string[]>();
 const buildEndpointEligible = (mode: GameMode): string[] => {
+  if (eligibleCache.has(mode)) return eligibleCache.get(mode)!;
   const scores = getFameScores(mode);
   const threshold = ENDPOINT_FAME_THRESHOLD[mode];
   const wkSet = getWellKnownSet(mode);
-  return getData(mode).players.filter(p =>
+  const result = getData(mode).players.filter(p =>
     wkSet.has(p) && (scores.get(p) ?? 0) >= threshold
   );
+  eligibleCache.set(mode, result);
+  return result;
+};
+
+// Lightweight BFS that only returns the distance (no path reconstruction).
+// Much faster for challenge generation where we only need the degree count.
+const findDistance = (
+  mode: GameMode,
+  start: string,
+  target: string,
+  maxDepth: number,
+): number | null => {
+  const data = getData(mode);
+  if (!data.playerSeasons[start] || !data.playerSeasons[target]) return null;
+  if (start === target) return 0;
+
+  type QItem = { player: string; depth: number };
+  const queue: QItem[] = [{ player: start, depth: 0 }];
+  const visited = new Set([start]);
+
+  while (queue.length) {
+    const { player: current, depth } = queue.shift()!;
+    if (depth >= maxDepth) continue;
+
+    const mySeasons = data.playerSeasons[current];
+    for (const r of mySeasons) {
+      const key = `${r.team}-${r.year}`;
+      const roster = data.teamSeasons[key];
+      if (!roster) continue;
+      for (const p of roster) {
+        if (p === current || visited.has(p)) continue;
+        if (p === target) return depth + 1;
+        visited.add(p);
+        queue.push({ player: p, depth: depth + 1 });
+      }
+    }
+  }
+
+  return null;
 };
 
 export const getRandomPlayers = (
@@ -226,7 +268,6 @@ export const getRandomPlayers = (
   const eligible = buildEndpointEligible(mode);
   if (eligible.length < 2) return null;
 
-  const BFS_CAP = 10;
   const [minDeg, maxDeg] = DEGREE_RANGE[difficulty];
 
   const pick = () => {
@@ -237,14 +278,12 @@ export const getRandomPlayers = (
   };
 
   // Primary: find pairs matching the target degree range
+  // Use maxDeg as BFS cap — no need to explore deeper than the max we accept.
   for (let attempt = 0; attempt < 80; attempt++) {
     const [p1, p2] = pick();
 
-    const path = findShortestPath(mode, p1, p2, BFS_CAP);
-    if (!path) continue;
-
-    const degrees = path.length - 1;
-    if (degrees < minDeg || degrees > maxDeg) continue;
+    const dist = findDistance(mode, p1, p2, maxDeg);
+    if (dist === null || dist < minDeg) continue;
 
     return { start: p1, target: p2 };
   }
@@ -252,8 +291,8 @@ export const getRandomPlayers = (
   // Soft fallback: accept any connected pair from the eligible pool
   for (let attempt = 0; attempt < 40; attempt++) {
     const [p1, p2] = pick();
-    const path = findShortestPath(mode, p1, p2, BFS_CAP);
-    if (path && path.length - 1 >= 2) return { start: p1, target: p2 };
+    const dist = findDistance(mode, p1, p2, maxDeg);
+    if (dist !== null && dist >= 2) return { start: p1, target: p2 };
   }
 
   return null;

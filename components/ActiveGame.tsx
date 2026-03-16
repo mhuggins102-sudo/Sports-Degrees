@@ -184,10 +184,11 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // ── Hint: auto-add the next optimal player ───────────────────────────────
 
-  const handleHint = () => {
+  const handleHint = (overrideMode?: HintMode) => {
     if (loading || won) return;
     setShowHintMenu(false);
-    const useWellKnown = hintMode === 'wellKnown';
+    const effectiveMode = overrideMode ?? hintMode;
+    const useWellKnown = effectiveMode === 'wellKnown';
     const path = findShortestPath(mode, currentNode.name, targetPlayer, Infinity, useWellKnown);
     if (path && path.length > 1) {
       submitGuess(path[1].name);
@@ -270,36 +271,28 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Degree</span>
             <span className="block text-lg font-black text-slate-200">{chain.length - 1}</span>
           </div>
-          {/* Hint button with mode selector */}
+          {/* Hint button — tap opens mode menu, selecting fires hint */}
           <div className="relative" ref={hintMenuRef}>
             <button
-              onClick={handleHint}
+              onClick={() => setShowHintMenu(v => !v)}
               disabled={loading || won}
-              title={`Hint: ${hintMode === 'wellKnown' ? 'well-known player' : 'optimal path'}`}
+              title="Hint"
               className="p-2 rounded-full transition-colors hover:bg-slate-800 text-slate-300 hover:text-yellow-400"
             >
               <Zap className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setShowHintMenu(!showHintMenu)}
-              disabled={loading || won}
-              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-[7px] font-bold hover:bg-slate-600"
-              title="Change hint mode"
-            >
-              ▾
-            </button>
             {showHintMenu && (
               <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden w-52">
                 <button
-                  onClick={() => { setHintMode('wellKnown'); setShowHintMenu(false); }}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${hintMode === 'wellKnown' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
+                  onClick={() => { setHintMode('wellKnown'); handleHint('wellKnown'); }}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 transition-colors ${hintMode === 'wellKnown' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
                 >
                   <Star className="w-3 h-3" />
                   Well-known player
                 </button>
                 <button
-                  onClick={() => { setHintMode('optimal'); setShowHintMenu(false); }}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 border-t border-slate-700 transition-colors ${hintMode === 'optimal' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
+                  onClick={() => { setHintMode('optimal'); handleHint('optimal'); }}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 border-t border-slate-700 transition-colors ${hintMode === 'optimal' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
                 >
                   <Zap className="w-3 h-3" />
                   Optimal (any player)
@@ -332,7 +325,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
         {/* Ghost target card */}
         {!won && (
-          <div className="opacity-35 grayscale pointer-events-none">
+          <div className="opacity-50 pointer-events-none">
             <div className="flex flex-col items-center my-1">
               <div className="h-5 w-px border-l-2 border-dashed border-slate-500" />
             </div>
@@ -502,63 +495,63 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   <Loader2 className="w-6 h-6 animate-spin mb-2" />
                   <p className="text-sm">Finding optimal path…</p>
                 </div>
-              ) : solution ? (
-                <>
-                  {/* Optimal path */}
+              ) : solution ? (() => {
+                const hasWk = solution.wellKnownPath && solution.wellKnownDegrees !== null;
+                const optIsShorter = hasWk && solution.optimalDegrees < solution.wellKnownDegrees!;
+                // If well-known exists at same degree count, show only well-known.
+                // If optimal is shorter, show both.
+                const showOptimal = !hasWk || optIsShorter;
+                const showWellKnown = hasWk;
+
+                const renderPath = (path: PlayerNode[], label: string, icon: React.ReactNode, dotColor: string) => (
                   <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
                     <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
-                      <Trophy className="w-4 h-4 text-yellow-500" />
-                      {solution.optimalPath.length > 0
-                        ? `Optimal: ${solution.optimalDegrees} degree${solution.optimalDegrees !== 1 ? 's' : ''}`
-                        : 'Solution unavailable'}
+                      {icon}
+                      {label}
                     </h3>
-                    {solution.optimalPath.length > 0 ? (
-                      <div className="space-y-2 text-sm">
-                        {solution.optimalPath.map((n, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : isNFL ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-                            <div>
-                              <span className="font-semibold text-slate-100">{n.name}</span>
-                              {n.connectionToPrev && (
-                                <span className="text-xs text-slate-400 block">
-                                  via {n.connectionToPrev.team} ({n.connectionToPrev.years})
-                                </span>
-                              )}
-                            </div>
+                    <div className="space-y-2 text-sm">
+                      {path.map((n, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : dotColor}`} />
+                          <div>
+                            <span className="font-semibold text-slate-100">{n.name}</span>
+                            {n.connectionToPrev && (
+                              <span className="text-xs text-slate-400 block">
+                                via {n.connectionToPrev.team} ({n.connectionToPrev.years})
+                              </span>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-slate-300 text-sm italic">{solution.explanation}</p>
-                    )}
-                  </div>
-
-                  {/* Well-known path */}
-                  {solution.wellKnownPath && solution.wellKnownDegrees !== null && (
-                    <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
-                      <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
-                        <Star className="w-4 h-4 text-amber-400" />
-                        Well-known players: {solution.wellKnownDegrees} degree{solution.wellKnownDegrees !== 1 ? 's' : ''}
-                      </h3>
-                      <div className="space-y-2 text-sm">
-                        {solution.wellKnownPath.map((n, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : 'bg-amber-500'}`} />
-                            <div>
-                              <span className="font-semibold text-slate-100">{n.name}</span>
-                              {n.connectionToPrev && (
-                                <span className="text-xs text-slate-400 block">
-                                  via {n.connectionToPrev.team} ({n.connectionToPrev.years})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </>
-              ) : null}
+                  </div>
+                );
+
+                return (
+                  <>
+                    {showOptimal && solution.optimalPath.length > 0 && renderPath(
+                      solution.optimalPath,
+                      `Optimal: ${solution.optimalDegrees} degree${solution.optimalDegrees !== 1 ? 's' : ''}`,
+                      <Trophy className="w-4 h-4 text-yellow-500" />,
+                      isNFL ? 'bg-blue-500' : 'bg-emerald-500',
+                    )}
+                    {showOptimal && solution.optimalPath.length === 0 && (
+                      <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
+                        <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-yellow-500" /> Solution unavailable
+                        </h3>
+                        <p className="text-slate-300 text-sm italic">{solution.explanation}</p>
+                      </div>
+                    )}
+                    {showWellKnown && renderPath(
+                      solution.wellKnownPath!,
+                      `${optIsShorter ? 'Well-known' : 'Best path'}: ${solution.wellKnownDegrees} degree${solution.wellKnownDegrees !== 1 ? 's' : ''}`,
+                      <Star className="w-4 h-4 text-amber-400" />,
+                      'bg-amber-500',
+                    )}
+                  </>
+                );
+              })() : null}
 
               <button onClick={onReset}
                 className="w-full py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">

@@ -284,6 +284,44 @@ for pid, group in rosters.groupby("player_id"):
 modern_dupes = sum(1 for v in nfl_modern_id_to_name.values() if "Jr." in v or "Sr." in v or "(" in v)
 print(f"   Disambiguated {modern_dupes} modern players with duplicate names")
 
+# === NFL: Import Pro Bowl / All-Pro / HOF honors from draft picks data ===
+print("   Loading NFL player honors (Pro Bowl / All-Pro / HOF)...")
+honors_by_gsis = {}   # gsis_id → {probowls, allpro, hof}
+honors_by_name = {}   # pfr_player_name → {probowls, allpro, hof}
+try:
+    draft_picks_df = nfl.import_draft_picks()
+    for _, row in draft_picks_df.iterrows():
+        pb = int(row["probowls"]) if pd.notna(row.get("probowls")) else 0
+        ap = int(row["allpro"]) if pd.notna(row.get("allpro")) else 0
+        hof = bool(row.get("hof")) if pd.notna(row.get("hof")) else False
+
+        # Index by gsis_id (matches player_id in modern rosters)
+        gsis = row.get("gsis_id")
+        if pd.notna(gsis) and gsis:
+            existing = honors_by_gsis.get(gsis, {"probowls": 0, "allpro": 0, "hof": False})
+            honors_by_gsis[gsis] = {
+                "probowls": max(pb, existing["probowls"]),
+                "allpro": max(ap, existing["allpro"]),
+                "hof": hof or existing["hof"],
+            }
+
+        # Index by name (for historical players without gsis_id)
+        name = row.get("pfr_player_name", "")
+        if pd.notna(name) and name:
+            existing = honors_by_name.get(name, {"probowls": 0, "allpro": 0, "hof": False})
+            honors_by_name[name] = {
+                "probowls": max(pb, existing["probowls"]),
+                "allpro": max(ap, existing["allpro"]),
+                "hof": hof or existing["hof"],
+            }
+    has_any = sum(1 for h in honors_by_gsis.values() if h["probowls"] >= 1 or h["allpro"] >= 1 or h["hof"])
+    print(f"   Loaded honors for {len(honors_by_gsis):,} players by ID, {len(honors_by_name):,} by name ({has_any:,} with honors)")
+except Exception as e:
+    print(f"   Warning: Could not load draft picks honors: {e}")
+
+# Build reverse map: display_name → player_id for modern players
+nfl_name_to_pid = {v: k for k, v in nfl_modern_id_to_name.items()}
+
 # === NFL: Historical data (1966-1998) from pre-downloaded CSV ===
 hist_file = Path("./scripts/historical_nfl_rosters.csv")
 if hist_file.exists():
@@ -521,24 +559,134 @@ if hist_file.exists():
 else:
     print("⚠️  No historical_nfl_rosters.csv found — run download_historical_nfl.py first")
 
-# === NFL: Well-known player determination (career length by position) ===
+# === NFL: Well-known player determination (honors + career length) ===
+# Tier 1: Any Pro Bowl, All-Pro, or HOF player is well-known
+# Tier 2: Long career by position (raised thresholds as fallback)
 NFL_WELL_KNOWN_YEARS = {
-    "QB": 8, "RB": 8, "FB": 8, "WR": 8, "TE": 7,
-    "LB": 7, "ILB": 7, "OLB": 7, "MLB": 7,
-    "DB": 7, "CB": 7, "S": 7, "SS": 7, "FS": 7,
-    "OL": 6, "OT": 6, "OG": 6, "C": 6, "T": 6, "G": 6,
-    "DL": 6, "DE": 6, "DT": 6, "NT": 6,
-    "K": 10, "P": 10, "SPEC": 10, "LS": 10,
+    "QB": 10, "RB": 10, "FB": 10, "WR": 10, "TE": 9,
+    "LB": 9, "ILB": 9, "OLB": 9, "MLB": 9,
+    "DB": 9, "CB": 9, "S": 9, "SS": 9, "FS": 9,
+    "OL": 8, "OT": 8, "OG": 8, "C": 8, "T": 8, "G": 8,
+    "DL": 8, "DE": 8, "DT": 8, "NT": 8,
+    "K": 12, "P": 12, "SPEC": 12, "LS": 12,
 }
+
+def _has_honors(name):
+    """Check if a player has Pro Bowl, All-Pro, or HOF honors."""
+    # Check by player_id (modern players, 1999+)
+    pid = nfl_name_to_pid.get(name)
+    if pid and pid in honors_by_gsis:
+        h = honors_by_gsis[pid]
+        if h["probowls"] >= 1 or h["allpro"] >= 1 or h["hof"]:
+            return True
+    # Check by name match (historical/drafted players)
+    # Strip disambiguation suffix: "John Smith (1990)" → "John Smith", "John Smith Jr." → "John Smith"
+    base = name
+    if " (" in base and base.endswith(")"):
+        base = base[:base.rindex(" (")]
+    for suffix in (" Sr.", " Jr."):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+    for candidate in [name, base]:
+        if candidate in honors_by_name:
+            h = honors_by_name[candidate]
+            if h["probowls"] >= 1 or h["allpro"] >= 1 or h["hof"]:
+                return True
+    return False
+
 nfl_well_known = {}
+honors_count = 0
+career_count = 0
 for name, seasons in nfl_player_seasons.items():
+    has_honor = _has_honors(name)
     career_years = len(set(s["year"] for s in seasons))
     pos = nfl_player_positions.get(name, "")
-    threshold = NFL_WELL_KNOWN_YEARS.get(pos, 7)
-    if career_years >= threshold:
+    threshold = NFL_WELL_KNOWN_YEARS.get(pos, 9)
+    long_career = career_years >= threshold
+
+    if has_honor:
         nfl_well_known[name] = True
+        honors_count += 1
+    elif long_career:
+        nfl_well_known[name] = True
+        career_count += 1
+
 nfl_well_known_list = sorted(nfl_well_known.keys())
-print(f"   {len(nfl_well_known_list):,} NFL players marked as well-known")
+print(f"   {len(nfl_well_known_list):,} NFL players marked as well-known ({honors_count:,} by honors, {career_count:,} by career length)")
+
+# === NFL: Pre-compute challenge pairs per difficulty ===
+from collections import deque
+import random
+
+print("   Pre-computing NFL challenge pairs...")
+
+def bfs_distance(start, target, max_depth):
+    """BFS returning distance or None. Uses deque for O(1) popleft."""
+    if start == target:
+        return 0
+    queue = deque([(start, 0)])
+    visited = {start}
+    while queue:
+        current, depth = queue.popleft()
+        if depth >= max_depth:
+            continue
+        for s in nfl_player_seasons.get(current, []):
+            key = f"{s['team']}-{s['year']}"
+            for p in nfl_team_seasons.get(key, []):
+                if p in visited:
+                    continue
+                if p == target:
+                    return depth + 1
+                visited.add(p)
+                queue.append((p, depth + 1))
+    return None
+
+# Build eligible endpoints (same logic as TypeScript buildEndpointEligible)
+NFL_POS_BONUS = {"QB": 3, "RB": 2, "FB": 2, "WR": 2, "TE": 1, "LB": 1, "ILB": 1, "OLB": 1, "MLB": 1, "CB": 1}
+
+def compute_fame(name):
+    seasons = nfl_player_seasons.get(name, [])
+    career = len(set(s["year"] for s in seasons))
+    pos = nfl_player_positions.get(name, "")
+    pos_bonus = NFL_POS_BONUS.get(pos, 0)
+    teammates = set()
+    for s in seasons:
+        key = f"{s['team']}-{s['year']}"
+        for p in nfl_team_seasons.get(key, []):
+            if p != name:
+                teammates.add(p)
+    tm_bonus = min(3, len(teammates) // 50)
+    return career + pos_bonus + tm_bonus
+
+nfl_eligible = [p for p in nfl_player_seasons if p in nfl_well_known and compute_fame(p) >= 15]
+print(f"   {len(nfl_eligible):,} eligible NFL endpoints for challenge generation")
+
+random.seed(42)  # reproducible builds
+
+DEGREE_RANGES = {
+    "Easy": (2, 3),
+    "Medium": (3, 5),
+    "Hard": (4, 7),
+}
+PAIRS_PER_DIFFICULTY = 200
+
+nfl_challenge_pairs = {}
+for diff, (min_deg, max_deg) in DEGREE_RANGES.items():
+    pairs = []
+    attempts = 0
+    max_attempts = 5000
+    while len(pairs) < PAIRS_PER_DIFFICULTY and attempts < max_attempts:
+        attempts += 1
+        i1 = random.randrange(len(nfl_eligible))
+        i2 = random.randrange(len(nfl_eligible))
+        if i1 == i2:
+            continue
+        p1, p2 = nfl_eligible[i1], nfl_eligible[i2]
+        dist = bfs_distance(p1, p2, max_deg)
+        if dist is not None and min_deg <= dist <= max_deg:
+            pairs.append([p1, p2, dist])
+    nfl_challenge_pairs[diff] = pairs
+    print(f"   {diff}: {len(pairs)} pairs found in {attempts} attempts")
 
 nfl_data = {
     "players": sorted(nfl_player_seasons.keys()),
@@ -546,6 +694,7 @@ nfl_data = {
     "teamSeasons": nfl_team_seasons,
     "playerPositions": nfl_player_positions,
     "wellKnown": nfl_well_known_list,
+    "challengePairs": nfl_challenge_pairs,
 }
 
 # === Save compact JSONs ===

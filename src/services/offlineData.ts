@@ -10,6 +10,7 @@ export interface SportData {
   teamSeasons: Record<string, string[]>;
   playerPositions?: Record<string, string>;
   wellKnown?: string[]; // sorted list of well-known player names
+  challengePairs?: Record<string, Array<[string, string, number]>>; // pre-computed pairs per difficulty
 }
 
 const mlbData: SportData = mlbDataRaw as SportData;
@@ -101,9 +102,10 @@ export const findShortestPath = (
   const queue: QItem[] = [{ player: start, depth: 0 }];
   const visited = new Set([start]);
   const parent = new Map<string, string>(); // neigh → prev player name
+  let head = 0; // index-based queue for O(1) dequeue
 
-  while (queue.length) {
-    const { player: current, depth } = queue.shift()!;
+  while (head < queue.length) {
+    const { player: current, depth } = queue[head++];
 
     if (current === target) break;
     if (depth >= maxDepth) continue;
@@ -239,9 +241,10 @@ const findDistance = (
   type QItem = { player: string; depth: number };
   const queue: QItem[] = [{ player: start, depth: 0 }];
   const visited = new Set([start]);
+  let head = 0; // index-based queue for O(1) dequeue
 
-  while (queue.length) {
-    const { player: current, depth } = queue.shift()!;
+  while (head < queue.length) {
+    const { player: current, depth } = queue[head++];
     if (depth >= maxDepth) continue;
 
     const mySeasons = data.playerSeasons[current];
@@ -265,6 +268,20 @@ export const getRandomPlayers = (
   mode: GameMode,
   difficulty: Difficulty = 'Easy',
 ): { start: string; target: string } | null => {
+  const data = getData(mode);
+  const pairs = data.challengePairs?.[difficulty];
+
+  // Use pre-computed pairs when available (NFL)
+  if (pairs && pairs.length > 0) {
+    const idx = Math.floor(Math.random() * pairs.length);
+    const [start, target] = pairs[idx];
+    // Verify both players still exist in the dataset
+    if (data.playerSeasons[start] && data.playerSeasons[target]) {
+      return { start, target };
+    }
+  }
+
+  // Fallback to BFS-based generation (for MLB or if no pairs available)
   const eligible = buildEndpointEligible(mode);
   if (eligible.length < 2) return null;
 
@@ -277,18 +294,13 @@ export const getRandomPlayers = (
     return [eligible[i1], eligible[i2]] as const;
   };
 
-  // Primary: find pairs matching the target degree range
-  // Use maxDeg as BFS cap — no need to explore deeper than the max we accept.
   for (let attempt = 0; attempt < 80; attempt++) {
     const [p1, p2] = pick();
-
     const dist = findDistance(mode, p1, p2, maxDeg);
     if (dist === null || dist < minDeg) continue;
-
     return { start: p1, target: p2 };
   }
 
-  // Soft fallback: accept any connected pair from the eligible pool
   for (let attempt = 0; attempt < 40; attempt++) {
     const [p1, p2] = pick();
     const dist = findDistance(mode, p1, p2, maxDeg);

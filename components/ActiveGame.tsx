@@ -189,12 +189,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     setShowHintMenu(false);
     const effectiveMode = overrideMode ?? hintMode;
     const useWellKnown = effectiveMode === 'wellKnown';
-    const path = findShortestPath(mode, currentNode.name, targetPlayer, Infinity, useWellKnown);
+    const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown);
     if (path && path.length > 1) {
       submitGuess(path[1].name);
     } else if (useWellKnown) {
       // Fall back to optimal if well-known path not found
-      const optPath = findShortestPath(mode, currentNode.name, targetPlayer);
+      const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10);
       if (optPath && optPath.length > 1) {
         submitGuess(optPath[1].name);
       } else {
@@ -209,16 +209,20 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   const fetchSolution = () => {
     setLoadingSolution(true);
-    const optPath = findShortestPath(mode, startPlayer, targetPlayer);
-    const wkPath = findShortestPath(mode, startPlayer, targetPlayer, Infinity, true);
-    setSolution({
-      optimalPath: optPath ?? [],
-      optimalDegrees: optPath ? optPath.length - 1 : 0,
-      wellKnownPath: wkPath,
-      wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
-      explanation: optPath ? undefined : 'Could not find a path in the offline database.',
-    });
-    setLoadingSolution(false);
+    // Use setTimeout so the loading spinner renders before BFS blocks the thread
+    setTimeout(() => {
+      // Cap BFS depth: challenges max at degree 7, so 10 is generous for optimal
+      const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10);
+      const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true);
+      setSolution({
+        optimalPath: optPath ?? [],
+        optimalDegrees: optPath ? optPath.length - 1 : 0,
+        wellKnownPath: wkPath,
+        wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
+        explanation: optPath ? undefined : 'Could not find a path within 10 degrees.',
+      });
+      setLoadingSolution(false);
+    }, 50);
   };
 
   const handleSurrender = () => {

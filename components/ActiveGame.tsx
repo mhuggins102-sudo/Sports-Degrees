@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { GameMode, Difficulty, PlayerNode, SolutionResponse } from '../types';
 import {
   validateTeammateOffline, findShortestPath, searchPlayers,
   getPlayerPosition, getCareerRange, getPlayerSeasons, isWellKnown,
 } from '../src/services/offlineData';
 import PlayerCard from './PlayerCard';
-import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap, X, Star } from 'lucide-react';
+import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap, X, Star, Share2 } from 'lucide-react';
 
 interface ActiveGameProps {
   mode: GameMode;
@@ -91,6 +92,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const shareChainRef = useRef<HTMLDivElement>(null);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'capturing' | 'done'>('idle');
 
   const currentNode = chain[chain.length - 1];
   const isNFL = mode === GameMode.NFL;
@@ -182,27 +185,38 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     submitGuess(player);
   };
 
-  // ── Hint: auto-add the next optimal player ───────────────────────────────
+  // ── Hint: auto-add the next well-known (NFL) or best (MLB) player ──────
 
   const handleHint = (overrideMode?: HintMode) => {
     if (loading || won) return;
     setShowHintMenu(false);
-    const effectiveMode = overrideMode ?? hintMode;
-    const useWellKnown = effectiveMode === 'wellKnown';
     const HINT_BUDGET = 500_000;
-    const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown, HINT_BUDGET);
-    if (path && path.length > 1) {
-      submitGuess(path[1].name);
-    } else if (useWellKnown) {
-      // Fall back to optimal if well-known path not found
-      const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10, false, HINT_BUDGET);
-      if (optPath && optPath.length > 1) {
-        submitGuess(optPath[1].name);
+
+    if (isNFL) {
+      // NFL: always use well-known path only (optimal BFS is too expensive)
+      const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, true, HINT_BUDGET);
+      if (path && path.length > 1) {
+        submitGuess(path[1].name);
       } else {
         setError('No path found from here to the target.');
       }
     } else {
-      setError('No path found from here to the target.');
+      // MLB: support both well-known and optimal modes
+      const effectiveMode = overrideMode ?? hintMode;
+      const useWellKnown = effectiveMode === 'wellKnown';
+      const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown, HINT_BUDGET);
+      if (path && path.length > 1) {
+        submitGuess(path[1].name);
+      } else if (useWellKnown) {
+        const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10, false, HINT_BUDGET);
+        if (optPath && optPath.length > 1) {
+          submitGuess(optPath[1].name);
+        } else {
+          setError('No path found from here to the target.');
+        }
+      } else {
+        setError('No path found from here to the target.');
+      }
     }
   };
 
@@ -210,20 +224,31 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   const fetchSolution = () => {
     setLoadingSolution(true);
-    // Use setTimeout so the loading spinner renders before BFS blocks the thread
     setTimeout(() => {
-      // Cap BFS depth and visits to avoid freezing on dense NFL graphs.
-      // 500K visits is enough to explore ~3 degrees in NFL; covers most paths.
       const VISIT_BUDGET = 500_000;
-      const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10, false, VISIT_BUDGET);
-      const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
-      setSolution({
-        optimalPath: optPath ?? [],
-        optimalDegrees: optPath ? optPath.length - 1 : 0,
-        wellKnownPath: wkPath,
-        wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
-        explanation: optPath ? undefined : 'Could not find a short path. The optimal route may require deep exploration.',
-      });
+
+      if (isNFL) {
+        // NFL: only compute well-known path (optimal BFS is too expensive on dense graph)
+        const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
+        setSolution({
+          optimalPath: [],
+          optimalDegrees: 0,
+          wellKnownPath: wkPath,
+          wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
+          explanation: wkPath ? undefined : 'Could not find a path using well-known players.',
+        });
+      } else {
+        // MLB: compute both optimal and well-known paths
+        const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10, false, VISIT_BUDGET);
+        const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
+        setSolution({
+          optimalPath: optPath ?? [],
+          optimalDegrees: optPath ? optPath.length - 1 : 0,
+          wellKnownPath: wkPath,
+          wellKnownDegrees: wkPath ? wkPath.length - 1 : null,
+          explanation: optPath ? undefined : 'Could not find a path in the offline database.',
+        });
+      }
       setLoadingSolution(false);
     }, 50);
   };
@@ -231,6 +256,43 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const handleSurrender = () => {
     setWon(true);
     fetchSolution();
+  };
+
+  const handleShare = async () => {
+    if (!shareChainRef.current) return;
+    setShareStatus('capturing');
+    try {
+      const canvas = await html2canvas(shareChainRef.current, {
+        backgroundColor: '#020617',
+        scale: 2,
+      });
+      canvas.toBlob(async (blob) => {
+        if (!blob) { setShareStatus('idle'); return; }
+        const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
+        const degrees = chain.length - 1;
+        const shareText = `Sports Degrees: ${startPlayer} → ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!`;
+
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({ text: shareText, files: [file] });
+          } catch {
+            // User cancelled share
+          }
+        } else {
+          // Fallback: download the image
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'sports-degrees.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        setShareStatus('done');
+        setTimeout(() => setShareStatus('idle'), 2000);
+      }, 'image/png');
+    } catch {
+      setShareStatus('idle');
+    }
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -273,28 +335,28 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Degree</span>
             <span className="block text-lg font-black text-slate-200">{chain.length - 1}</span>
           </div>
-          {/* Hint button — tap opens mode menu, selecting fires hint */}
+          {/* Hint button — NFL: direct fire, MLB: mode menu */}
           <div className="relative" ref={hintMenuRef}>
             <button
-              onClick={() => setShowHintMenu(v => !v)}
+              onClick={() => isNFL ? handleHint('wellKnown') : setShowHintMenu(v => !v)}
               disabled={loading || won}
               title="Hint"
               className="p-2 rounded-full transition-colors hover:bg-slate-800 text-slate-300 hover:text-yellow-400"
             >
               <Zap className="w-4 h-4" />
             </button>
-            {showHintMenu && (
+            {!isNFL && showHintMenu && (
               <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden w-52">
                 <button
                   onClick={() => { setHintMode('wellKnown'); handleHint('wellKnown'); }}
-                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 transition-colors ${hintMode === 'wellKnown' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 transition-colors ${hintMode === 'wellKnown' ? 'bg-emerald-900/50 text-emerald-200' : 'text-slate-300 hover:bg-slate-700'}`}
                 >
                   <Star className="w-3 h-3" />
                   Well-known player
                 </button>
                 <button
                   onClick={() => { setHintMode('optimal'); handleHint('optimal'); }}
-                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 border-t border-slate-700 transition-colors ${hintMode === 'optimal' ? (isNFL ? 'bg-blue-900/50 text-blue-200' : 'bg-emerald-900/50 text-emerald-200') : 'text-slate-300 hover:bg-slate-700'}`}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 border-t border-slate-700 transition-colors ${hintMode === 'optimal' ? 'bg-emerald-900/50 text-emerald-200' : 'text-slate-300 hover:bg-slate-700'}`}
                 >
                   <Zap className="w-3 h-3" />
                   Optimal (any player)
@@ -368,7 +430,20 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             </div>
           )}
 
-          <div className="px-4 pt-3 pb-3">
+          {/* Context bar: current player → target (always visible above input) */}
+          <div className="px-4 pt-2 pb-1 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-slate-400 truncate">
+                <span className="font-semibold text-slate-200">{currentNode.name}</span>
+              </span>
+            </div>
+            <ArrowRight className="w-3 h-3 text-slate-500 flex-shrink-0 mx-2" />
+            <span className={`font-semibold truncate ${isNFL ? 'text-blue-300' : 'text-emerald-300'}`}>
+              {targetPlayer}
+            </span>
+          </div>
+
+          <div className="px-4 pt-1 pb-3">
             <form onSubmit={handleFormSubmit}>
               <div className="flex gap-2">
                 <input
@@ -408,10 +483,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               </div>
             )}
 
-            <div className="mt-2 flex justify-between items-center">
-              <p className="text-xs text-slate-400">
-                Reach <strong className={isNFL ? 'text-blue-300' : 'text-emerald-300'}>{targetPlayer}</strong>
-              </p>
+            <div className="mt-2 flex justify-end">
               <button onClick={handleSurrender}
                 className="text-xs text-slate-400 hover:text-slate-200 underline">
                 Show answer
@@ -483,26 +555,49 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       {won && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700">
-            <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
-              <h2 className="text-2xl font-bold mb-1">
-                {chain[chain.length - 1].name === targetPlayer ? 'You did it!' : 'Game Over'}
-              </h2>
-              <p className="opacity-90 text-sm">
-                Connected in <span className="font-bold text-xl">{chain.length - 1}</span> degree{chain.length - 1 !== 1 ? 's' : ''}.
-              </p>
+
+            {/* Shareable content — captured by html2canvas */}
+            <div ref={shareChainRef}>
+              <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
+                <h2 className="text-2xl font-bold mb-1">
+                  {chain[chain.length - 1].name === targetPlayer ? 'You did it!' : 'Game Over'}
+                </h2>
+                <p className="opacity-90 text-sm">
+                  Connected in <span className="font-bold text-xl">{chain.length - 1}</span> degree{chain.length - 1 !== 1 ? 's' : ''}.
+                </p>
+              </div>
+
+              {/* Your chain */}
+              <div className="bg-slate-950 px-5 py-4">
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Your chain</p>
+                <div className="space-y-1.5 text-sm">
+                  {chain.map((n, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : isNFL ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+                      <div>
+                        <span className="font-semibold text-slate-100">{n.name}</span>
+                        {n.connectionToPrev && (
+                          <span className="text-xs text-slate-400 ml-1.5">
+                            via {n.connectionToPrev.team} ({n.connectionToPrev.years})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-3">sportsdegrees.netlify.app</p>
+              </div>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-5 space-y-4 max-h-[40vh] overflow-y-auto">
               {loadingSolution ? (
                 <div className="flex flex-col items-center py-6 text-slate-300">
                   <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                  <p className="text-sm">Finding optimal path…</p>
+                  <p className="text-sm">Finding best path…</p>
                 </div>
               ) : solution ? (() => {
                 const hasWk = solution.wellKnownPath && solution.wellKnownDegrees !== null;
                 const optIsShorter = hasWk && solution.optimalDegrees < solution.wellKnownDegrees!;
-                // If well-known exists at same degree count, show only well-known.
-                // If optimal is shorter, show both.
                 const showOptimal = !hasWk || optIsShorter;
                 const showWellKnown = hasWk;
 
@@ -538,7 +633,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                       <Trophy className="w-4 h-4 text-yellow-500" />,
                       isNFL ? 'bg-blue-500' : 'bg-emerald-500',
                     )}
-                    {showOptimal && solution.optimalPath.length === 0 && (
+                    {showOptimal && solution.optimalPath.length === 0 && solution.explanation && (
                       <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
                         <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
                           <Trophy className="w-4 h-4 text-yellow-500" /> Solution unavailable
@@ -556,10 +651,25 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                 );
               })() : null}
 
-              <button onClick={onReset}
-                className="w-full py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">
-                Play Again
-              </button>
+              <div className="flex gap-2">
+                <button onClick={handleShare}
+                  disabled={shareStatus === 'capturing'}
+                  className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
+                    shareStatus === 'done'
+                      ? 'bg-green-600 text-white'
+                      : isNFL
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}>
+                  {shareStatus === 'capturing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                   shareStatus === 'done' ? 'Saved!' :
+                   <><Share2 className="w-4 h-4" /> Share</>}
+                </button>
+                <button onClick={onReset}
+                  className="flex-1 py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">
+                  Play Again
+                </button>
+              </div>
             </div>
           </div>
         </div>

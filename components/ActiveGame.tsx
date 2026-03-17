@@ -60,6 +60,26 @@ function groupSeasons(seasons: Array<{ team: string; year: number }>): Array<{ t
   return result.sort((a, b) => a.startYear - b.startYear);
 }
 
+// Score calculation
+function computeScore(
+  userDegrees: number,
+  bestDegrees: number,
+  hintsUsed: number,
+  incorrectGuesses: number,
+  cardViews: number,
+) {
+  if (hintsUsed >= userDegrees) return { total: 0, hintPenalty: 0, stepPenalty: 0, wrongPenalty: 0, viewPenalty: 0 };
+
+  const extraSteps = Math.max(0, userDegrees - bestDegrees);
+  const hintPenalty = userDegrees > 0 ? Math.round(hintsUsed * (70 / userDegrees)) : 0;
+  const stepPenalty = extraSteps * 5;
+  const wrongPenalty = incorrectGuesses * 3;
+  const viewPenalty = cardViews * 2;
+  const total = Math.max(0, 100 - hintPenalty - stepPenalty - wrongPenalty - viewPenalty);
+
+  return { total, hintPenalty, stepPenalty, wrongPenalty, viewPenalty };
+}
+
 type HintMode = 'optimal' | 'wellKnown';
 
 const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, targetPlayer, onReset }) => {
@@ -92,9 +112,17 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Share: pre-captured image file
   const shareChainRef = useRef<HTMLDivElement>(null);
-  const [shareStatus, setShareStatus] = useState<'idle' | 'capturing' | 'ready' | 'done'>('idle');
-  const [shareDataUrl, setShareDataUrl] = useState<string | null>(null);
+  const [shareFile, setShareFile] = useState<File | null>(null);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'done'>('idle');
+
+  // Scoring trackers
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [cardViews, setCardViews] = useState(0);
+  const [incorrectGuesses, setIncorrectGuesses] = useState(0);
+  const [surrendered, setSurrendered] = useState(false);
 
   const currentNode = chain[chain.length - 1];
   const isNFL = mode === GameMode.NFL;
@@ -114,6 +142,31 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chain.length, won]);
+
+  // Pre-capture share image when user wins (not surrender)
+  useEffect(() => {
+    if (!won || surrendered || !shareChainRef.current) return;
+    const capture = async () => {
+      try {
+        const el = shareChainRef.current;
+        if (!el) return;
+        const canvas = await html2canvas(el, { backgroundColor: '#020617', scale: 2 });
+        canvas.toBlob(blob => {
+          if (blob) {
+            setShareFile(new File([blob], 'sports-degrees.png', { type: 'image/png' }));
+          }
+        }, 'image/png');
+      } catch { /* ignore */ }
+    };
+    const timer = setTimeout(capture, 300);
+    return () => clearTimeout(timer);
+  }, [won, surrendered]);
+
+  // Open player card popup (tracks views during active play)
+  const openPlayerCard = (name: string) => {
+    setPopupPlayer(name);
+    if (!won) setCardViews(v => v + 1);
+  };
 
   // ── Core submission ───────────────────────────────────────────────────────
 
@@ -144,6 +197,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       }
     } else {
       setError(result.reason ?? 'Invalid connection.');
+      setIncorrectGuesses(g => g + 1);
     }
 
     setLoading(false);
@@ -197,6 +251,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       // NFL: always use well-known path only (optimal BFS is too expensive)
       const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, true, HINT_BUDGET);
       if (path && path.length > 1) {
+        setHintsUsed(h => h + 1);
         submitGuess(path[1].name);
       } else {
         setError('No path found from here to the target.');
@@ -207,10 +262,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       const useWellKnown = effectiveMode === 'wellKnown';
       const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown, HINT_BUDGET);
       if (path && path.length > 1) {
+        setHintsUsed(h => h + 1);
         submitGuess(path[1].name);
       } else if (useWellKnown) {
         const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10, false, HINT_BUDGET);
         if (optPath && optPath.length > 1) {
+          setHintsUsed(h => h + 1);
           submitGuess(optPath[1].name);
         } else {
           setError('No path found from here to the target.');
@@ -255,50 +312,34 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   };
 
   const handleSurrender = () => {
+    setSurrendered(true);
     setWon(true);
     fetchSolution();
   };
 
-  // Two-step share: first capture (async), then share/save (user gesture)
-  const handleShareCapture = async () => {
-    if (!shareChainRef.current) return;
-    setShareStatus('capturing');
-    try {
-      const canvas = await html2canvas(shareChainRef.current, {
-        backgroundColor: '#020617',
-        scale: 2,
-      });
-      setShareDataUrl(canvas.toDataURL('image/png'));
-      setShareStatus('ready');
-    } catch {
-      setShareStatus('idle');
-    }
-  };
+  // ── Share (one-click using pre-captured image) ─────────────────────────────
 
-  const handleShareSend = async () => {
-    if (!shareDataUrl) return;
+  const handleShare = async () => {
+    if (!shareFile) return;
+    setShareStatus('sharing');
     const degrees = chain.length - 1;
     const shareText = `Sports Degrees: ${startPlayer} \u2192 ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!\nhttps://sportsdegrees.netlify.app`;
 
     try {
-      const res = await fetch(shareDataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
-
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ text: shareText, files: [file] });
+      if (navigator.share && navigator.canShare?.({ files: [shareFile] })) {
+        await navigator.share({ text: shareText, files: [shareFile] });
       } else if (navigator.share) {
         await navigator.share({ text: shareText });
       } else {
-        // Desktop fallback: open image in new tab
-        window.open(shareDataUrl, '_blank');
+        const url = URL.createObjectURL(shareFile);
+        window.open(url, '_blank');
       }
     } catch {
       // User cancelled — that's fine
     }
 
     setShareStatus('done');
-    setTimeout(() => { setShareStatus('idle'); setShareDataUrl(null); }, 2000);
+    setTimeout(() => setShareStatus('idle'), 2000);
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -314,6 +355,14 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const targetCareer = getCareerRange(mode, targetPlayer);
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  // Compute score when solution is available
+  const userDegrees = chain.length - 1;
+  const bestDegrees = solution
+    ? (solution.optimalDegrees > 0 ? solution.optimalDegrees : solution.wellKnownDegrees ?? userDegrees)
+    : userDegrees;
+  const score = solution ? computeScore(userDegrees, bestDegrees, hintsUsed, incorrectGuesses, cardViews) : null;
+  const userCompleted = chain[chain.length - 1]?.name === targetPlayer;
 
   return (
     <div className="h-full flex flex-col">
@@ -390,7 +439,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               isEnd={idx === chain.length - 1}
               isTarget={node.name === targetPlayer}
               showCareerYears={showCareerYears(idx)}
-              onCardClick={() => setPopupPlayer(node.name)}
+              onCardClick={() => openPlayerCard(node.name)}
             />
           ))}
 
@@ -406,7 +455,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                 mode={mode}
                 isTarget
                 showCareerYears={true}
-                onCardClick={() => setPopupPlayer(targetPlayer)}
+                onCardClick={() => openPlayerCard(targetPlayer)}
               />
             </div>
           )}
@@ -552,63 +601,89 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         );
       })()}
 
-      {/* ── Win modal ── */}
+      {/* ── Win / Surrender modal ── */}
       {won && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700">
-
-            {/* Shareable content — captured by html2canvas */}
-            <div ref={shareChainRef}>
+        <>
+          {/* Offscreen share capture — visual PlayerCards chain (only on actual win) */}
+          {userCompleted && (
+            <div
+              ref={shareChainRef}
+              style={{ position: 'fixed', left: '-9999px', top: 0, width: '400px' }}
+              className="bg-slate-950"
+            >
               <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
-                <h2 className="text-2xl font-bold mb-1">
-                  {chain[chain.length - 1].name === targetPlayer ? 'You did it!' : 'Game Over'}
-                </h2>
-                <p className="opacity-90 text-sm">
-                  Connected in <span className="font-bold text-xl">{chain.length - 1}</span> degree{chain.length - 1 !== 1 ? 's' : ''}.
+                <h2 className="text-lg font-bold">Sports Degrees</h2>
+                <p className="opacity-90 text-sm mt-0.5">
+                  {startPlayer} → {targetPlayer}
+                </p>
+                <p className="text-3xl font-black mt-1">
+                  {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
                 </p>
               </div>
-
-              {/* Your chain */}
-              <div className="bg-slate-950 px-5 py-4">
-                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Your chain</p>
-                <div className="space-y-1.5 text-sm">
-                  {chain.map((n, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : isNFL ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-                      <div>
-                        <span className="font-semibold text-slate-100">{n.name}</span>
-                        {n.connectionToPrev && (
-                          <span className="text-xs text-slate-400 ml-1.5">
-                            via {n.connectionToPrev.team} ({n.connectionToPrev.years})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] text-slate-500 mt-3">sportsdegrees.netlify.app</p>
+              <div className="px-4 py-3">
+                {chain.map((node, idx) => (
+                  <PlayerCard
+                    key={`share-${node.id}`}
+                    node={node}
+                    index={idx}
+                    mode={mode}
+                    isStart={idx === 0}
+                    isTarget={node.name === targetPlayer}
+                    showCareerYears={true}
+                  />
+                ))}
               </div>
+              <p className="text-center text-[10px] text-slate-500 pb-3">sportsdegrees.netlify.app</p>
             </div>
+          )}
 
-            <div className="p-5 space-y-4 max-h-[40vh] overflow-y-auto">
-              {loadingSolution ? (
-                <div className="flex flex-col items-center py-6 text-slate-300">
-                  <Loader2 className="w-6 h-6 animate-spin mb-2" />
-                  <p className="text-sm">Finding best path…</p>
-                </div>
-              ) : solution ? (() => {
-                const hasWk = solution.wellKnownPath && solution.wellKnownDegrees !== null;
-                const optIsShorter = hasWk && solution.optimalDegrees < solution.wellKnownDegrees!;
-                const showOptimal = !hasWk || optIsShorter;
-                const showWellKnown = hasWk;
+          {/* Visible modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700">
 
-                const renderPath = (path: PlayerNode[], label: string, _icon: React.ReactNode, dotColor: string) => (
+              {/* Header */}
+              <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
+                {surrendered ? (
+                  <h2 className="text-xl font-bold">Here's our best solution</h2>
+                ) : (
+                  <>
+                    <h2 className="text-lg font-bold mb-2">You did it!</h2>
+                    {score ? (
+                      <div>
+                        <div className="text-5xl font-black leading-none">{score.total}</div>
+                        <p className="text-xs opacity-75 mt-1">out of 100</p>
+                        {(() => {
+                          const parts: string[] = [];
+                          if (score.stepPenalty > 0) parts.push(`-${score.stepPenalty} extra steps`);
+                          if (score.hintPenalty > 0) parts.push(`-${score.hintPenalty} hints`);
+                          if (score.wrongPenalty > 0) parts.push(`-${score.wrongPenalty} wrong guesses`);
+                          if (score.viewPenalty > 0) parts.push(`-${score.viewPenalty} card views`);
+                          return parts.length > 0 ? (
+                            <p className="text-xs opacity-50 mt-1">{parts.join(' · ')}</p>
+                          ) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <p className="opacity-90 text-sm">
+                        Connected in <span className="font-bold text-xl">{userDegrees}</span> degree{userDegrees !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="p-5 space-y-4 max-h-[50vh] overflow-y-auto">
+
+                {/* Your chain — only shown on actual win */}
+                {userCompleted && (
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">{label}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">
+                      Your chain: {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
+                    </p>
                     <div className="space-y-1.5 text-sm">
-                      {path.map((n, i) => (
+                      {chain.map((n, i) => (
                         <div key={i} className="flex items-start gap-2">
-                          <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : dotColor}`} />
+                          <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : isNFL ? 'bg-blue-500' : 'bg-emerald-500'}`} />
                           <div>
                             <span className="font-semibold text-slate-100">{n.name}</span>
                             {n.connectionToPrev && (
@@ -621,58 +696,95 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                       ))}
                     </div>
                   </div>
-                );
+                )}
 
-                return (
-                  <>
-                    {showOptimal && solution.optimalPath.length > 0 && renderPath(
-                      solution.optimalPath,
-                      `Optimal: ${solution.optimalDegrees} degree${solution.optimalDegrees !== 1 ? 's' : ''}`,
-                      <Trophy className="w-4 h-4 text-yellow-500" />,
-                      isNFL ? 'bg-blue-500' : 'bg-emerald-500',
-                    )}
-                    {showOptimal && solution.optimalPath.length === 0 && solution.explanation && (
-                      <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Solution unavailable</p>
-                        <p className="text-slate-300 text-sm italic">{solution.explanation}</p>
+                {/* Solutions */}
+                {loadingSolution ? (
+                  <div className="flex flex-col items-center py-6 text-slate-300">
+                    <Loader2 className="w-6 h-6 animate-spin mb-2" />
+                    <p className="text-sm">Finding best path…</p>
+                  </div>
+                ) : solution ? (() => {
+                  const hasWk = solution.wellKnownPath && solution.wellKnownDegrees !== null;
+                  const optIsShorter = hasWk && solution.optimalDegrees < solution.wellKnownDegrees!;
+                  const showOptimal = !hasWk || optIsShorter;
+                  const showWellKnown = hasWk;
+
+                  const renderPath = (path: PlayerNode[], label: string, _icon: React.ReactNode, dotColor: string) => (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">{label}</p>
+                      <div className="space-y-1.5 text-sm">
+                        {path.map((n, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : dotColor}`} />
+                            <div>
+                              <span className="font-semibold text-slate-100">{n.name}</span>
+                              {n.connectionToPrev && (
+                                <span className="text-xs text-slate-400 ml-1.5">
+                                  via {n.connectionToPrev.team} ({n.connectionToPrev.years})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                    {showWellKnown && renderPath(
-                      solution.wellKnownPath!,
-                      `${optIsShorter ? 'Well-known' : 'Best path'}: ${solution.wellKnownDegrees} degree${solution.wellKnownDegrees !== 1 ? 's' : ''}`,
-                      <Star className="w-4 h-4 text-amber-400" />,
-                      'bg-amber-500',
-                    )}
-                  </>
-                );
-              })() : null}
+                    </div>
+                  );
 
-              <div className="flex gap-2">
-                <button
-                  onClick={shareStatus === 'ready' ? handleShareSend : handleShareCapture}
-                  disabled={shareStatus === 'capturing'}
-                  className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
-                    shareStatus === 'done'
-                      ? 'bg-green-600 text-white'
-                      : shareStatus === 'ready'
-                        ? 'bg-amber-500 text-white hover:bg-amber-600'
-                        : isNFL
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  }`}>
-                  {shareStatus === 'capturing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                   shareStatus === 'ready' ? <><Share2 className="w-4 h-4" /> Send</> :
-                   shareStatus === 'done' ? 'Shared!' :
-                   <><Share2 className="w-4 h-4" /> Share</>}
-                </button>
-                <button onClick={onReset}
-                  className="flex-1 py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">
-                  Play Again
-                </button>
+                  return (
+                    <>
+                      {showOptimal && solution.optimalPath.length > 0 && renderPath(
+                        solution.optimalPath,
+                        `Optimal: ${solution.optimalDegrees} degree${solution.optimalDegrees !== 1 ? 's' : ''}`,
+                        <Trophy className="w-4 h-4 text-yellow-500" />,
+                        isNFL ? 'bg-blue-500' : 'bg-emerald-500',
+                      )}
+                      {showOptimal && solution.optimalPath.length === 0 && solution.explanation && (
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Solution unavailable</p>
+                          <p className="text-slate-300 text-sm italic">{solution.explanation}</p>
+                        </div>
+                      )}
+                      {showWellKnown && renderPath(
+                        solution.wellKnownPath!,
+                        `${optIsShorter ? 'Well-known' : 'Best path'}: ${solution.wellKnownDegrees} degree${solution.wellKnownDegrees !== 1 ? 's' : ''}`,
+                        <Star className="w-4 h-4 text-amber-400" />,
+                        'bg-amber-500',
+                      )}
+                    </>
+                  );
+                })() : null}
+
+                {/* Action buttons */}
+                <div className="flex gap-2">
+                  {userCompleted && (
+                    <button
+                      onClick={handleShare}
+                      disabled={!shareFile || shareStatus === 'sharing'}
+                      className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
+                        shareStatus === 'done'
+                          ? 'bg-green-600 text-white'
+                          : !shareFile
+                            ? 'bg-slate-700 text-slate-400'
+                            : isNFL
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}>
+                      {shareStatus === 'sharing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                       shareStatus === 'done' ? 'Shared!' :
+                       !shareFile ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing…</> :
+                       <><Share2 className="w-4 h-4" /> Share</>}
+                    </button>
+                  )}
+                  <button onClick={onReset}
+                    className={`${userCompleted ? 'flex-1' : 'w-full'} py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors`}>
+                    Play Again
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

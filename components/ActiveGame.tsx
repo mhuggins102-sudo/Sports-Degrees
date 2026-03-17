@@ -66,18 +66,18 @@ function computeScore(
   bestDegrees: number,
   hintsUsed: number,
   incorrectGuesses: number,
-  cardViews: number,
+  uniqueCardViews: number,
 ) {
-  if (hintsUsed >= userDegrees) return { total: 0, hintPenalty: 0, stepPenalty: 0, wrongPenalty: 0, viewPenalty: 0 };
+  if (hintsUsed >= userDegrees) return { total: 0, extraSteps: 0, hintsUsed, incorrectGuesses, uniqueCardViews, hintPenalty: 0, stepPenalty: 0, wrongPenalty: 0, viewPenalty: 0 };
 
   const extraSteps = Math.max(0, userDegrees - bestDegrees);
   const hintPenalty = userDegrees > 0 ? Math.round(hintsUsed * (70 / userDegrees)) : 0;
   const stepPenalty = extraSteps * 5;
   const wrongPenalty = incorrectGuesses * 3;
-  const viewPenalty = cardViews * 2;
+  const viewPenalty = uniqueCardViews * 2;
   const total = Math.max(0, 100 - hintPenalty - stepPenalty - wrongPenalty - viewPenalty);
 
-  return { total, hintPenalty, stepPenalty, wrongPenalty, viewPenalty };
+  return { total, extraSteps, hintsUsed, incorrectGuesses, uniqueCardViews, hintPenalty, stepPenalty, wrongPenalty, viewPenalty };
 }
 
 type HintMode = 'optimal' | 'wellKnown';
@@ -365,7 +365,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const bestDegrees = solution
     ? (solution.optimalDegrees > 0 ? solution.optimalDegrees : solution.wellKnownDegrees ?? userDegrees)
     : userDegrees;
-  const score = solution ? computeScore(userDegrees, bestDegrees, hintsUsed, incorrectGuesses, cardViews) : null;
+  const score = solution ? computeScore(userDegrees, bestDegrees, hintsUsed, incorrectGuesses, viewedPlayers.size) : null;
   const userCompleted = chain[chain.length - 1]?.name === targetPlayer;
 
   // Render a chain annotation for a player name in the Your Chain / solution sections
@@ -641,7 +641,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="px-5 py-3">
+              <div className="px-5 pt-1 pb-2">
                 {chain.map((node, idx) => (
                   <PlayerCard
                     key={`share-${node.id}`}
@@ -691,22 +691,22 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                       <div className="text-right space-y-0.5">
                         {score.stepPenalty > 0 && (
                           <p className="text-xs text-slate-400">
-                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.stepPenalty}</span> extra steps
+                            {score.extraSteps} extra step{score.extraSteps !== 1 ? 's' : ''} = <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.stepPenalty}</span>
                           </p>
                         )}
                         {score.hintPenalty > 0 && (
                           <p className="text-xs text-slate-400">
-                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.hintPenalty}</span> hints
+                            {score.hintsUsed} hint{score.hintsUsed !== 1 ? 's' : ''} = <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.hintPenalty}</span>
                           </p>
                         )}
                         {score.wrongPenalty > 0 && (
                           <p className="text-xs text-slate-400">
-                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.wrongPenalty}</span> wrong guesses
+                            {score.incorrectGuesses} wrong = <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.wrongPenalty}</span>
                           </p>
                         )}
                         {score.viewPenalty > 0 && (
                           <p className="text-xs text-slate-400">
-                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.viewPenalty}</span> card views
+                            {score.uniqueCardViews} card view{score.uniqueCardViews !== 1 ? 's' : ''} = <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.viewPenalty}</span>
                           </p>
                         )}
                       </div>
@@ -801,12 +801,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               </div>
 
               {/* Fixed bottom buttons */}
-              <div className="flex-shrink-0 border-t border-slate-700 px-4 py-3 flex gap-2">
+              <div className="flex-shrink-0 border-t border-slate-700 px-4 py-3 flex gap-2 items-stretch">
                 {userCompleted && (
                   <button
                     onClick={handleShare}
                     disabled={!shareFile || shareStatus === 'sharing'}
-                    className={`basis-[22%] flex-shrink-0 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 transition-colors ${
+                    className={`${userCompleted ? 'basis-[24%]' : 'flex-1'} flex-shrink-0 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 transition-colors ${
                       shareStatus === 'done'
                         ? 'bg-green-600 text-white'
                         : !shareFile
@@ -822,11 +822,11 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   </button>
                 )}
                 <button onClick={onNewGame}
-                  className="flex-1 py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
+                  className={`${userCompleted ? 'flex-1' : 'flex-[2]'} py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2`}>
                   <RotateCcw className="w-4 h-4" /> Play Again
                 </button>
                 <button onClick={onReset}
-                  className={`${userCompleted ? 'basis-[22%]' : 'basis-[30%]'} flex-shrink-0 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5`}>
+                  className={`${userCompleted ? 'basis-[24%]' : 'flex-1'} flex-shrink-0 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5`}>
                   <Home className="w-4 h-4" /> Home
                 </button>
               </div>

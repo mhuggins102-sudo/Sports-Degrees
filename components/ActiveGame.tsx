@@ -524,7 +524,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   onBlur={() => setTimeout(() => setSuggestions([]), 100)}
                   placeholder={`Who played with ${currentNode.name}?`}
                   disabled={loading}
-                  autoFocus
                   autoComplete="off"
                   className={`
                     flex-1 pl-4 py-3 rounded-xl border-2 font-medium outline-none transition-all bg-slate-950 text-white placeholder-slate-500 text-base
@@ -642,7 +641,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="px-4 py-3">
+              <div className="px-5 py-3">
                 {chain.map((node, idx) => (
                   <PlayerCard
                     key={`share-${node.id}`}
@@ -807,7 +806,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   <button
                     onClick={handleShare}
                     disabled={!shareFile || shareStatus === 'sharing'}
-                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
+                    className={`basis-[22%] flex-shrink-0 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 transition-colors ${
                       shareStatus === 'done'
                         ? 'bg-green-600 text-white'
                         : !shareFile
@@ -818,7 +817,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                     }`}>
                     {shareStatus === 'sharing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
                      shareStatus === 'done' ? 'Shared!' :
-                     !shareFile ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing…</> :
+                     !shareFile ? <Loader2 className="w-4 h-4 animate-spin" /> :
                      <><Share2 className="w-4 h-4" /> Share</>}
                   </button>
                 )}
@@ -827,7 +826,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   <RotateCcw className="w-4 h-4" /> Play Again
                 </button>
                 <button onClick={onReset}
-                  className="flex-1 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                  className={`${userCompleted ? 'basis-[22%]' : 'basis-[30%]'} flex-shrink-0 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5`}>
                   <Home className="w-4 h-4" /> Home
                 </button>
               </div>

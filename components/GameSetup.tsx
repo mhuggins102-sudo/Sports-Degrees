@@ -7,12 +7,6 @@ interface GameSetupProps {
   onStart: (mode: GameMode, start: string, target: string, difficulty: Difficulty) => void;
 }
 
-const DIFFICULTY_DESC: Record<Difficulty, string> = {
-  Easy:   'QB / RB / WR only • 2–3 degrees',
-  Medium: 'Skill + select defense • 3–5 degrees',
-  Hard:   'Any position • 4–7 degrees',
-};
-
 const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
   const [mode, setMode] = useState<GameMode>(GameMode.NFL);
   const [difficulty, setDifficulty] = useState<Difficulty>('Easy');
@@ -117,9 +111,6 @@ const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {
               </button>
             ))}
           </div>
-          <p className="text-center text-xs text-slate-400 leading-relaxed">
-            {DIFFICULTY_DESC[difficulty]}
-          </p>
         </div>
 
         {/* Error */}

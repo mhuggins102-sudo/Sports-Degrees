@@ -235,13 +235,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // Easy: career years always visible. Medium: shown after next guess. Hard: hidden.
-  const showCareerYears = (idx: number) =>
-    difficulty === 'Easy'
-      ? true
-      : difficulty === 'Medium'
-        ? idx < chain.length - 1
-        : false;
+  // Career years are always visible on all difficulties
+  const showCareerYears = (_idx: number) => true;
 
   const accentActive = isNFL ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white';
   const accentHover  = isNFL ? 'hover:bg-blue-700' : 'hover:bg-emerald-700';
@@ -264,13 +259,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               {targetPlayer}
             </span>
             {targetPosition && (
-              <span className={`text-[10px] font-bold uppercase tracking-wide ${isNFL ? 'text-sky-400/70' : 'text-emerald-400/70'}`}>
+              <span className={`text-xs font-bold uppercase tracking-wide ${isNFL ? 'text-sky-400/70' : 'text-emerald-400/70'}`}>
                 {targetPosition}
               </span>
             )}
           </div>
           {targetCareer && (
-            <span className="text-[10px] text-slate-400 leading-tight">{targetCareer}</span>
+            <span className="text-xs text-slate-400 leading-tight">{targetCareer}</span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -332,7 +327,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
         {/* Ghost target card */}
         {!won && (
-          <div className="opacity-50">
+          <div className="opacity-75">
             <div className="flex flex-col items-center my-1">
               <div className="h-5 w-px border-l-2 border-dashed border-slate-500" />
             </div>
@@ -387,7 +382,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   autoFocus
                   autoComplete="off"
                   className={`
-                    flex-1 pl-4 py-3 rounded-xl border-2 font-medium outline-none transition-all bg-slate-950 text-white placeholder-slate-500 text-sm
+                    flex-1 pl-4 py-3 rounded-xl border-2 font-medium outline-none transition-all bg-slate-950 text-white placeholder-slate-500 text-base
                     ${error ? 'border-red-900/50 bg-red-900/10 focus:border-red-500' : 'border-slate-700 focus:border-slate-500'}
                     ${loading ? 'opacity-50' : ''}
                   `}

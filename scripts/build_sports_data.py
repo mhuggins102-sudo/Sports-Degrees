@@ -658,30 +658,51 @@ def compute_fame(name):
     tm_bonus = min(3, len(teammates) // 50)
     return career + pos_bonus + tm_bonus
 
-nfl_eligible = [p for p in nfl_player_seasons if p in nfl_well_known and compute_fame(p) >= 15]
-print(f"   {len(nfl_eligible):,} eligible NFL endpoints for challenge generation")
+nfl_eligible_all = [p for p in nfl_player_seasons if p in nfl_well_known and compute_fame(p) >= 15]
+print(f"   {len(nfl_eligible_all):,} eligible NFL endpoints (all positions)")
+
+# Position-filtered pools per difficulty:
+# Easy: QB, RB, WR only (skill positions casual fans know)
+# Medium: + TE, K, CB, LB, S, SS, FS, ILB, OLB, MLB
+# Hard: any position
+EASY_POSITIONS = {"QB", "RB", "WR"}
+MEDIUM_POSITIONS = {"QB", "RB", "WR", "TE", "K", "CB", "LB", "S", "SS", "FS", "ILB", "OLB", "MLB"}
+
+nfl_eligible_easy = [p for p in nfl_eligible_all if nfl_player_positions.get(p, "") in EASY_POSITIONS]
+nfl_eligible_medium = [p for p in nfl_eligible_all if nfl_player_positions.get(p, "") in MEDIUM_POSITIONS]
+nfl_eligible_hard = nfl_eligible_all
+
+print(f"   Easy pool: {len(nfl_eligible_easy):,} (QB/RB/WR)")
+print(f"   Medium pool: {len(nfl_eligible_medium):,} (+ TE/K/CB/LB/S)")
+print(f"   Hard pool: {len(nfl_eligible_hard):,} (all positions)")
 
 random.seed(42)  # reproducible builds
 
-DEGREE_RANGES = {
-    "Easy": (2, 3),
-    "Medium": (3, 5),
-    "Hard": (4, 7),
+DIFFICULTY_CONFIG = {
+    "Easy":   {"range": (2, 3), "pool": nfl_eligible_easy},
+    "Medium": {"range": (3, 5), "pool": nfl_eligible_medium},
+    "Hard":   {"range": (4, 7), "pool": nfl_eligible_hard},
 }
 PAIRS_PER_DIFFICULTY = 200
 
 nfl_challenge_pairs = {}
-for diff, (min_deg, max_deg) in DEGREE_RANGES.items():
+for diff, cfg in DIFFICULTY_CONFIG.items():
+    min_deg, max_deg = cfg["range"]
+    pool = cfg["pool"]
     pairs = []
     attempts = 0
     max_attempts = 5000
+    if len(pool) < 2:
+        print(f"   {diff}: pool too small ({len(pool)}), skipping")
+        nfl_challenge_pairs[diff] = []
+        continue
     while len(pairs) < PAIRS_PER_DIFFICULTY and attempts < max_attempts:
         attempts += 1
-        i1 = random.randrange(len(nfl_eligible))
-        i2 = random.randrange(len(nfl_eligible))
+        i1 = random.randrange(len(pool))
+        i2 = random.randrange(len(pool))
         if i1 == i2:
             continue
-        p1, p2 = nfl_eligible[i1], nfl_eligible[i2]
+        p1, p2 = pool[i1], pool[i2]
         dist = bfs_distance(p1, p2, max_deg)
         if dist is not None and min_deg <= dist <= max_deg:
             pairs.append([p1, p2, dist])

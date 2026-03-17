@@ -8,9 +8,9 @@ interface GameSetupProps {
 }
 
 const DIFFICULTY_DESC: Record<Difficulty, string> = {
-  Easy:   'Household names • 2–3 degrees',
-  Medium: 'Household names • 3–5 degrees',
-  Hard:   'Household names • 4–7 degrees',
+  Easy:   'QB / RB / WR only • 2–3 degrees',
+  Medium: 'Skill + select defense • 3–5 degrees',
+  Hard:   'Any position • 4–7 degrees',
 };
 
 const GameSetup: React.FC<GameSetupProps> = ({ onStart }) => {

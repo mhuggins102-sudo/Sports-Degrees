@@ -68,7 +68,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
 
             {/* Name row: player name + position badge */}
             <div className="flex items-baseline gap-2 min-w-0">
-              <h3 className="text-sm font-bold text-white leading-tight truncate">
+              <h3 className="text-sm font-bold text-white leading-tight">
                 {node.name}
               </h3>
               {node.position && (

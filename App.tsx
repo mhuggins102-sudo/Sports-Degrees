@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameMode, Difficulty } from './types';
 import GameSetup from './components/GameSetup';
 import ActiveGame from './components/ActiveGame';
+import { getRandomPlayers } from './src/services/offlineData';
 
 type AppState = 'setup' | 'playing';
 
@@ -11,6 +12,7 @@ const App: React.FC = () => {
   const [difficulty, setDifficulty] = useState<Difficulty>('Easy');
   const [startPlayer, setStartPlayer] = useState('');
   const [targetPlayer, setTargetPlayer] = useState('');
+  const [gameKey, setGameKey] = useState(0);
 
   const handleStart = (gameMode: GameMode, start: string, target: string, diff: Difficulty) => {
     setMode(gameMode);
@@ -21,6 +23,17 @@ const App: React.FC = () => {
   };
 
   const handleReset = () => setAppState('setup');
+
+  const handleNewGame = () => {
+    const result = getRandomPlayers(mode, difficulty);
+    if (result) {
+      setStartPlayer(result.start);
+      setTargetPlayer(result.target);
+      setGameKey(k => k + 1);
+    } else {
+      handleReset();
+    }
+  };
 
   if (appState === 'setup') {
     return (
@@ -33,11 +46,13 @@ const App: React.FC = () => {
   return (
     <div className="h-screen bg-slate-950">
       <ActiveGame
+        key={gameKey}
         mode={mode}
         difficulty={difficulty}
         startPlayer={startPlayer}
         targetPlayer={targetPlayer}
         onReset={handleReset}
+        onNewGame={handleNewGame}
       />
     </div>
   );

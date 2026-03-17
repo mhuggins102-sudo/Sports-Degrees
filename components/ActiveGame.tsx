@@ -6,7 +6,7 @@ import {
   getPlayerPosition, getCareerRange, getPlayerSeasons, isWellKnown,
 } from '../src/services/offlineData';
 import PlayerCard from './PlayerCard';
-import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap, X, Star, Share2 } from 'lucide-react';
+import { Loader2, ArrowRight, RotateCcw, AlertCircle, Trophy, Zap, X, Star, Share2, Home, Eye } from 'lucide-react';
 
 interface ActiveGameProps {
   mode: GameMode;
@@ -14,6 +14,7 @@ interface ActiveGameProps {
   startPlayer: string;
   targetPlayer: string;
   onReset: () => void;
+  onNewGame: () => void;
 }
 
 // Build a fully-populated PlayerNode (position + career range included)
@@ -31,7 +32,6 @@ function makeNode(mode: GameMode, name: string, connectionToPrev?: PlayerNode['c
 function groupSeasons(seasons: Array<{ team: string; year: number }>): Array<{ team: string; range: string }> {
   const sorted = [...seasons].sort((a, b) => a.year - b.year || a.team.localeCompare(b.team));
 
-  // Group by team, then find consecutive runs
   const teamYears = new Map<string, number[]>();
   for (const s of sorted) {
     const arr = teamYears.get(s.team) ?? [];
@@ -82,7 +82,7 @@ function computeScore(
 
 type HintMode = 'optimal' | 'wellKnown';
 
-const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, targetPlayer, onReset }) => {
+const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, targetPlayer, onReset, onNewGame }) => {
   const [chain, setChain] = useState<PlayerNode[]>(() => [{
     id: 'start',
     name: startPlayer,
@@ -120,7 +120,9 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // Scoring trackers
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintedPlayers, setHintedPlayers] = useState<Set<string>>(new Set());
   const [cardViews, setCardViews] = useState(0);
+  const [viewedPlayers, setViewedPlayers] = useState<Set<string>>(new Set());
   const [incorrectGuesses, setIncorrectGuesses] = useState(0);
   const [surrendered, setSurrendered] = useState(false);
 
@@ -165,7 +167,10 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   // Open player card popup (tracks views during active play)
   const openPlayerCard = (name: string) => {
     setPopupPlayer(name);
-    if (!won) setCardViews(v => v + 1);
+    if (!won) {
+      setCardViews(v => v + 1);
+      setViewedPlayers(prev => new Set(prev).add(name.toLowerCase()));
+    }
   };
 
   // ── Core submission ───────────────────────────────────────────────────────
@@ -248,27 +253,31 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     const HINT_BUDGET = 500_000;
 
     if (isNFL) {
-      // NFL: always use well-known path only (optimal BFS is too expensive)
       const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, true, HINT_BUDGET);
       if (path && path.length > 1) {
+        const hintName = path[1].name;
         setHintsUsed(h => h + 1);
-        submitGuess(path[1].name);
+        setHintedPlayers(prev => new Set(prev).add(hintName.toLowerCase()));
+        submitGuess(hintName);
       } else {
         setError('No path found from here to the target.');
       }
     } else {
-      // MLB: support both well-known and optimal modes
       const effectiveMode = overrideMode ?? hintMode;
       const useWellKnown = effectiveMode === 'wellKnown';
       const path = findShortestPath(mode, currentNode.name, targetPlayer, 10, useWellKnown, HINT_BUDGET);
       if (path && path.length > 1) {
+        const hintName = path[1].name;
         setHintsUsed(h => h + 1);
-        submitGuess(path[1].name);
+        setHintedPlayers(prev => new Set(prev).add(hintName.toLowerCase()));
+        submitGuess(hintName);
       } else if (useWellKnown) {
         const optPath = findShortestPath(mode, currentNode.name, targetPlayer, 10, false, HINT_BUDGET);
         if (optPath && optPath.length > 1) {
+          const hintName = optPath[1].name;
           setHintsUsed(h => h + 1);
-          submitGuess(optPath[1].name);
+          setHintedPlayers(prev => new Set(prev).add(hintName.toLowerCase()));
+          submitGuess(hintName);
         } else {
           setError('No path found from here to the target.');
         }
@@ -286,7 +295,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       const VISIT_BUDGET = 500_000;
 
       if (isNFL) {
-        // NFL: only compute well-known path (optimal BFS is too expensive on dense graph)
         const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
         setSolution({
           optimalPath: [],
@@ -296,7 +304,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
           explanation: wkPath ? undefined : 'Could not find a path using well-known players.',
         });
       } else {
-        // MLB: compute both optimal and well-known paths
         const optPath = findShortestPath(mode, startPlayer, targetPlayer, 10, false, VISIT_BUDGET);
         const wkPath = findShortestPath(mode, startPlayer, targetPlayer, 15, true, VISIT_BUDGET);
         setSolution({
@@ -344,25 +351,35 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // Career years are always visible on all difficulties
   const showCareerYears = (_idx: number) => true;
 
   const accentActive = isNFL ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white';
   const accentHover  = isNFL ? 'hover:bg-blue-700' : 'hover:bg-emerald-700';
 
-  // Target player info for header display
   const targetPosition = getPlayerPosition(mode, targetPlayer);
   const targetCareer = getCareerRange(mode, targetPlayer);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Compute score when solution is available
   const userDegrees = chain.length - 1;
   const bestDegrees = solution
     ? (solution.optimalDegrees > 0 ? solution.optimalDegrees : solution.wellKnownDegrees ?? userDegrees)
     : userDegrees;
   const score = solution ? computeScore(userDegrees, bestDegrees, hintsUsed, incorrectGuesses, cardViews) : null;
   const userCompleted = chain[chain.length - 1]?.name === targetPlayer;
+
+  // Render a chain annotation for a player name in the Your Chain / solution sections
+  const renderAnnotatedName = (name: string, isFirst: boolean) => {
+    const isHinted = hintedPlayers.has(name.toLowerCase());
+    const isViewed = viewedPlayers.has(name.toLowerCase());
+    return (
+      <>
+        {isHinted && <Zap className="w-3 h-3 inline mr-1 text-yellow-500" />}
+        <span className={`font-semibold ${isHinted ? 'text-yellow-400' : 'text-slate-100'}`}>{name}</span>
+        {isViewed && <Eye className="w-3 h-3 inline ml-1 text-slate-500" />}
+      </>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -419,9 +436,13 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               </div>
             )}
           </div>
-          <button onClick={onReset} title="New game"
+          <button onClick={onNewGame} title="New game"
             className="p-2 hover:bg-slate-800 rounded-full text-slate-300 hover:text-slate-100 transition-colors">
             <RotateCcw className="w-4 h-4" />
+          </button>
+          <button onClick={onReset} title="Home"
+            className="p-2 hover:bg-slate-800 rounded-full text-slate-300 hover:text-slate-100 transition-colors">
+            <Home className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -464,7 +485,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         </div>
       </div>
 
-      {/* ── Input bar (flex-shrink-0 so it sticks to bottom) ── */}
+      {/* ── Input bar ── */}
       {!won && (
         <div className="flex-shrink-0 bg-slate-900 border-t border-slate-800 relative">
           {/* Autocomplete — positioned above the input bar */}
@@ -496,7 +517,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   onFocus={() => setTimeout(() => {
-                    // Scroll the card area so the last card + target are visible
                     if (scrollAreaRef.current) {
                       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
                     }
@@ -556,7 +576,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs border border-slate-700 overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Career Seasons</p>
@@ -577,7 +596,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                 </button>
               </div>
 
-              {/* Table */}
               <div className="overflow-y-auto max-h-72">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-slate-950">
@@ -608,15 +626,19 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
           {userCompleted && (
             <div
               ref={shareChainRef}
-              style={{ position: 'fixed', left: '-9999px', top: 0, width: '400px' }}
+              style={{ position: 'fixed', left: '-9999px', top: 0, width: '440px' }}
               className="bg-slate-950"
             >
-              <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
-                <h2 className="text-lg font-bold">Sports Degrees</h2>
-                <p className="opacity-90 text-sm mt-0.5">
+              <div className={`px-5 py-2.5 text-center border-t-2 ${
+                isNFL
+                  ? 'bg-gradient-to-b from-sky-900/80 via-slate-900 to-slate-950 border-sky-500'
+                  : 'bg-gradient-to-b from-emerald-900/80 via-slate-900 to-slate-950 border-emerald-500'
+              }`}>
+                <h2 className={`text-lg font-bold ${isNFL ? 'text-sky-400' : 'text-emerald-400'}`}>Sports Degrees</h2>
+                <p className="opacity-90 text-sm text-slate-300">
                   {startPlayer} → {targetPlayer}
                 </p>
-                <p className="text-3xl font-black mt-1">
+                <p className="text-xl font-black text-white">
                   {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
                 </p>
               </div>
@@ -639,40 +661,63 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
           {/* Visible modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700">
+            <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700 flex flex-col max-h-[85vh]">
 
               {/* Header */}
-              <div className={`p-5 text-center text-white ${isNFL ? 'bg-blue-700' : 'bg-emerald-700'}`}>
+              <div className={`flex-shrink-0 px-5 py-3 border-t-2 ${
+                isNFL
+                  ? 'bg-gradient-to-r from-blue-900/60 via-slate-800 to-slate-900 border-blue-500'
+                  : 'bg-gradient-to-r from-emerald-900/60 via-slate-800 to-slate-900 border-emerald-500'
+              } rounded-t-2xl`}>
                 {surrendered ? (
-                  <h2 className="text-xl font-bold">Here's our best solution</h2>
+                  <p className="text-base font-bold text-slate-200 text-center py-1">Here's our best solution</p>
                 ) : (
-                  <>
-                    <h2 className="text-lg font-bold mb-2">You did it!</h2>
-                    {score ? (
-                      <div>
-                        <div className="text-5xl font-black leading-none">{score.total}</div>
-                        <p className="text-xs opacity-75 mt-1">out of 100</p>
-                        {(() => {
-                          const parts: string[] = [];
-                          if (score.stepPenalty > 0) parts.push(`-${score.stepPenalty} extra steps`);
-                          if (score.hintPenalty > 0) parts.push(`-${score.hintPenalty} hints`);
-                          if (score.wrongPenalty > 0) parts.push(`-${score.wrongPenalty} wrong guesses`);
-                          if (score.viewPenalty > 0) parts.push(`-${score.viewPenalty} card views`);
-                          return parts.length > 0 ? (
-                            <p className="text-xs opacity-50 mt-1">{parts.join(' · ')}</p>
-                          ) : null;
-                        })()}
+                  <div className="flex items-center justify-between">
+                    {/* Left: title + score */}
+                    <div>
+                      <p className="text-sm font-bold text-slate-300 mb-0.5">You did it!</p>
+                      {score ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-black text-white leading-none">{score.total}</span>
+                          <span className="text-xs text-slate-400">/ 100</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400">
+                          {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                    {/* Right: deduction tally */}
+                    {score && (score.stepPenalty > 0 || score.hintPenalty > 0 || score.wrongPenalty > 0 || score.viewPenalty > 0) && (
+                      <div className="text-right space-y-0.5">
+                        {score.stepPenalty > 0 && (
+                          <p className="text-xs text-slate-400">
+                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.stepPenalty}</span> extra steps
+                          </p>
+                        )}
+                        {score.hintPenalty > 0 && (
+                          <p className="text-xs text-slate-400">
+                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.hintPenalty}</span> hints
+                          </p>
+                        )}
+                        {score.wrongPenalty > 0 && (
+                          <p className="text-xs text-slate-400">
+                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.wrongPenalty}</span> wrong guesses
+                          </p>
+                        )}
+                        {score.viewPenalty > 0 && (
+                          <p className="text-xs text-slate-400">
+                            <span className={`font-bold ${isNFL ? 'text-blue-400' : 'text-emerald-400'}`}>-{score.viewPenalty}</span> card views
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="opacity-90 text-sm">
-                        Connected in <span className="font-bold text-xl">{userDegrees}</span> degree{userDegrees !== 1 ? 's' : ''}
-                      </p>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
 
-              <div className="p-5 space-y-4 max-h-[50vh] overflow-y-auto">
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
                 {/* Your chain — only shown on actual win */}
                 {userCompleted && (
@@ -685,7 +730,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                         <div key={i} className="flex items-start gap-2">
                           <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : isNFL ? 'bg-blue-500' : 'bg-emerald-500'}`} />
                           <div>
-                            <span className="font-semibold text-slate-100">{n.name}</span>
+                            {renderAnnotatedName(n.name, i === 0)}
                             {n.connectionToPrev && (
                               <span className="text-xs text-slate-400 ml-1.5">
                                 via {n.connectionToPrev.team} ({n.connectionToPrev.years})
@@ -754,33 +799,37 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                     </>
                   );
                 })() : null}
+              </div>
 
-                {/* Action buttons */}
-                <div className="flex gap-2">
-                  {userCompleted && (
-                    <button
-                      onClick={handleShare}
-                      disabled={!shareFile || shareStatus === 'sharing'}
-                      className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
-                        shareStatus === 'done'
-                          ? 'bg-green-600 text-white'
-                          : !shareFile
-                            ? 'bg-slate-700 text-slate-400'
-                            : isNFL
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                      }`}>
-                      {shareStatus === 'sharing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                       shareStatus === 'done' ? 'Shared!' :
-                       !shareFile ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing…</> :
-                       <><Share2 className="w-4 h-4" /> Share</>}
-                    </button>
-                  )}
-                  <button onClick={onReset}
-                    className={`${userCompleted ? 'flex-1' : 'w-full'} py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors`}>
-                    Play Again
+              {/* Fixed bottom buttons */}
+              <div className="flex-shrink-0 border-t border-slate-700 px-4 py-3 flex gap-2">
+                {userCompleted && (
+                  <button
+                    onClick={handleShare}
+                    disabled={!shareFile || shareStatus === 'sharing'}
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
+                      shareStatus === 'done'
+                        ? 'bg-green-600 text-white'
+                        : !shareFile
+                          ? 'bg-slate-700 text-slate-400'
+                          : isNFL
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    }`}>
+                    {shareStatus === 'sharing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                     shareStatus === 'done' ? 'Shared!' :
+                     !shareFile ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing…</> :
+                     <><Share2 className="w-4 h-4" /> Share</>}
                   </button>
-                </div>
+                )}
+                <button onClick={onNewGame}
+                  className="flex-1 py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
+                  <RotateCcw className="w-4 h-4" /> Play Again
+                </button>
+                <button onClick={onReset}
+                  className="flex-1 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                  <Home className="w-4 h-4" /> Home
+                </button>
               </div>
             </div>
           </div>

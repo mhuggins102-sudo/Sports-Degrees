@@ -641,7 +641,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="px-5 pt-1 pb-2">
+              <div className="px-5 pt-1 pb-2 flex flex-col items-center">
                 {chain.map((node, idx) => (
                   <PlayerCard
                     key={`share-${node.id}`}
@@ -801,12 +801,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               </div>
 
               {/* Fixed bottom buttons */}
-              <div className="flex-shrink-0 border-t border-slate-700 px-4 py-3 flex gap-2 items-stretch">
+              <div className="flex-shrink-0 border-t border-slate-700 px-4 py-3 grid gap-2" style={{ gridTemplateColumns: userCompleted ? '1fr 1fr 1fr' : '1fr 1fr' }}>
                 {userCompleted && (
                   <button
                     onClick={handleShare}
                     disabled={!shareFile || shareStatus === 'sharing'}
-                    className={`${userCompleted ? 'basis-[24%]' : 'flex-1'} flex-shrink-0 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 transition-colors ${
+                    className={`py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1.5 transition-colors ${
                       shareStatus === 'done'
                         ? 'bg-green-600 text-white'
                         : !shareFile
@@ -822,11 +822,11 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   </button>
                 )}
                 <button onClick={onNewGame}
-                  className={`${userCompleted ? 'flex-1' : 'flex-[2]'} py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2`}>
-                  <RotateCcw className="w-4 h-4" /> Play Again
+                  className="py-2.5 bg-white text-slate-900 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
+                  <RotateCcw className="w-4 h-4" /> Restart
                 </button>
                 <button onClick={onReset}
-                  className={`${userCompleted ? 'basis-[24%]' : 'flex-1'} flex-shrink-0 py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5`}>
+                  className="py-2.5 rounded-lg font-bold text-sm border border-slate-600 text-slate-300 hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5">
                   <Home className="w-4 h-4" /> Home
                 </button>
               </div>

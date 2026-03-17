@@ -266,30 +266,42 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         backgroundColor: '#020617',
         scale: 2,
       });
-      canvas.toBlob(async (blob) => {
-        if (!blob) { setShareStatus('idle'); return; }
-        const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
-        const degrees = chain.length - 1;
-        const shareText = `Sports Degrees: ${startPlayer} → ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!`;
 
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          try {
+      // Convert canvas to blob synchronously to preserve user gesture for share API
+      const dataUrl = canvas.toDataURL('image/png');
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
+      const degrees = chain.length - 1;
+      const shareText = `Sports Degrees: ${startPlayer} → ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!`;
+
+      let shared = false;
+      if (navigator.share) {
+        try {
+          if (navigator.canShare?.({ files: [file] })) {
             await navigator.share({ text: shareText, files: [file] });
-          } catch {
-            // User cancelled share
+            shared = true;
+          } else {
+            await navigator.share({ text: shareText, url: 'https://sportsdegrees.netlify.app' });
+            shared = true;
           }
-        } else {
-          // Fallback: download the image
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'sports-degrees.png';
-          a.click();
-          URL.revokeObjectURL(url);
+        } catch {
+          // User cancelled or share failed — fall through to download
         }
-        setShareStatus('done');
-        setTimeout(() => setShareStatus('idle'), 2000);
-      }, 'image/png');
+      }
+
+      if (!shared) {
+        // Fallback: trigger download via anchor click
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'sports-degrees.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      setShareStatus('done');
+      setTimeout(() => setShareStatus('idle'), 2000);
     } catch {
       setShareStatus('idle');
     }
@@ -430,20 +442,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             </div>
           )}
 
-          {/* Context bar: current player → target (always visible above input) */}
-          <div className="px-4 pt-2 pb-1 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-slate-400 truncate">
-                <span className="font-semibold text-slate-200">{currentNode.name}</span>
-              </span>
-            </div>
-            <ArrowRight className="w-3 h-3 text-slate-500 flex-shrink-0 mx-2" />
-            <span className={`font-semibold truncate ${isNFL ? 'text-blue-300' : 'text-emerald-300'}`}>
-              {targetPlayer}
-            </span>
-          </div>
-
-          <div className="px-4 pt-1 pb-3">
+          <div className="px-4 pt-3 pb-3">
             <form onSubmit={handleFormSubmit}>
               <div className="flex gap-2">
                 <input
@@ -451,6 +450,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   value={guess}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)}
                   onBlur={() => setTimeout(() => setSuggestions([]), 100)}
                   placeholder={`Who played with ${currentNode.name}?`}
                   disabled={loading}
@@ -607,14 +607,14 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                       {icon}
                       {label}
                     </h3>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-sm">
                       {path.map((n, i) => (
                         <div key={i} className="flex items-start gap-2">
                           <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? 'bg-slate-500' : dotColor}`} />
                           <div>
                             <span className="font-semibold text-slate-100">{n.name}</span>
                             {n.connectionToPrev && (
-                              <span className="text-xs text-slate-400 block">
+                              <span className="text-xs text-slate-400 ml-1.5">
                                 via {n.connectionToPrev.team} ({n.connectionToPrev.years})
                               </span>
                             )}

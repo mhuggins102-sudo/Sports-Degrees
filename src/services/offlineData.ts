@@ -29,12 +29,12 @@ export const isWellKnown = (mode: GameMode, player: string): boolean =>
   getWellKnownSet(mode).has(player);
 
 // Fuzzy search setup (one per mode)
-const mlbFuse = new Fuse(mlbData.players, { threshold: 0.3, minMatchCharLength: 2 });
-const nflFuse = new Fuse(nflData.players, { threshold: 0.3, minMatchCharLength: 2 });
+const mlbFuse = new Fuse(mlbData.players, { threshold: 0.25, minMatchCharLength: 2 });
+const nflFuse = new Fuse(nflData.players, { threshold: 0.25, minMatchCharLength: 2 });
 
 export const searchPlayers = (mode: GameMode, query: string): string[] => {
   const fuse = mode === GameMode.MLB ? mlbFuse : nflFuse;
-  return fuse.search(query).slice(0, 8).map(result => result.item);
+  return fuse.search(query).slice(0, 5).map(result => result.item);
 };
 
 export const areTeammates = (mode: GameMode, p1: string, p2: string): boolean => {

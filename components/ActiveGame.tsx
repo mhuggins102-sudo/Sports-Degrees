@@ -93,7 +93,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const shareChainRef = useRef<HTMLDivElement>(null);
-  const [shareStatus, setShareStatus] = useState<'idle' | 'capturing' | 'done'>('idle');
+  const [shareStatus, setShareStatus] = useState<'idle' | 'capturing' | 'ready' | 'done'>('idle');
+  const [shareDataUrl, setShareDataUrl] = useState<string | null>(null);
 
   const currentNode = chain[chain.length - 1];
   const isNFL = mode === GameMode.NFL;
@@ -258,7 +259,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     fetchSolution();
   };
 
-  const handleShare = async () => {
+  // Two-step share: first capture (async), then share/save (user gesture)
+  const handleShareCapture = async () => {
     if (!shareChainRef.current) return;
     setShareStatus('capturing');
     try {
@@ -266,45 +268,37 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         backgroundColor: '#020617',
         scale: 2,
       });
-
-      // Convert canvas to blob synchronously to preserve user gesture for share API
-      const dataUrl = canvas.toDataURL('image/png');
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
-      const degrees = chain.length - 1;
-      const shareText = `Sports Degrees: ${startPlayer} → ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!`;
-
-      let shared = false;
-      if (navigator.share) {
-        try {
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ text: shareText, files: [file] });
-            shared = true;
-          } else {
-            await navigator.share({ text: shareText, url: 'https://sportsdegrees.netlify.app' });
-            shared = true;
-          }
-        } catch {
-          // User cancelled or share failed — fall through to download
-        }
-      }
-
-      if (!shared) {
-        // Fallback: trigger download via anchor click
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = 'sports-degrees.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-
-      setShareStatus('done');
-      setTimeout(() => setShareStatus('idle'), 2000);
+      setShareDataUrl(canvas.toDataURL('image/png'));
+      setShareStatus('ready');
     } catch {
       setShareStatus('idle');
     }
+  };
+
+  const handleShareSend = async () => {
+    if (!shareDataUrl) return;
+    const degrees = chain.length - 1;
+    const shareText = `Sports Degrees: ${startPlayer} \u2192 ${targetPlayer} in ${degrees} degree${degrees !== 1 ? 's' : ''}!\nhttps://sportsdegrees.netlify.app`;
+
+    try {
+      const res = await fetch(shareDataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], 'sports-degrees.png', { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ text: shareText, files: [file] });
+      } else if (navigator.share) {
+        await navigator.share({ text: shareText });
+      } else {
+        // Desktop fallback: open image in new tab
+        window.open(shareDataUrl, '_blank');
+      }
+    } catch {
+      // User cancelled — that's fine
+    }
+
+    setShareStatus('done');
+    setTimeout(() => { setShareStatus('idle'); setShareDataUrl(null); }, 2000);
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -384,39 +378,41 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       </div>
 
       {/* ── Scrollable card area ── */}
-      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-0">
-        {chain.map((node, idx) => (
-          <PlayerCard
-            key={node.id}
-            node={node}
-            index={idx}
-            mode={mode}
-            isStart={idx === 0}
-            isEnd={idx === chain.length - 1}
-            isTarget={node.name === targetPlayer}
-            showCareerYears={showCareerYears(idx)}
-            onCardClick={() => setPopupPlayer(node.name)}
-          />
-        ))}
-
-        {/* Ghost target card */}
-        {!won && (
-          <div className="opacity-75">
-            <div className="flex flex-col items-center my-1">
-              <div className="h-5 w-px border-l-2 border-dashed border-slate-500" />
-            </div>
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col justify-end">
+        <div>
+          {chain.map((node, idx) => (
             <PlayerCard
-              node={{ id: 'target', name: targetPlayer, position: targetPosition, careerYears: targetCareer }}
-              index={chain.length}
+              key={node.id}
+              node={node}
+              index={idx}
               mode={mode}
-              isTarget
-              showCareerYears={true}
-              onCardClick={() => setPopupPlayer(targetPlayer)}
+              isStart={idx === 0}
+              isEnd={idx === chain.length - 1}
+              isTarget={node.name === targetPlayer}
+              showCareerYears={showCareerYears(idx)}
+              onCardClick={() => setPopupPlayer(node.name)}
             />
-          </div>
-        )}
+          ))}
 
-        <div ref={bottomRef} />
+          {/* Ghost target card */}
+          {!won && (
+            <div className="opacity-75">
+              <div className="flex flex-col items-center my-1">
+                <div className="h-5 w-px border-l-2 border-dashed border-slate-500" />
+              </div>
+              <PlayerCard
+                node={{ id: 'target', name: targetPlayer, position: targetPosition, careerYears: targetCareer }}
+                index={chain.length}
+                mode={mode}
+                isTarget
+                showCareerYears={true}
+                onCardClick={() => setPopupPlayer(targetPlayer)}
+              />
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* ── Input bar (flex-shrink-0 so it sticks to bottom) ── */}
@@ -450,7 +446,12 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                   value={guess}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  onFocus={() => setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)}
+                  onFocus={() => setTimeout(() => {
+                    // Scroll the card area so the last card + target are visible
+                    if (scrollAreaRef.current) {
+                      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+                    }
+                  }, 300)}
                   onBlur={() => setTimeout(() => setSuggestions([]), 100)}
                   placeholder={`Who played with ${currentNode.name}?`}
                   disabled={loading}
@@ -601,12 +602,9 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                 const showOptimal = !hasWk || optIsShorter;
                 const showWellKnown = hasWk;
 
-                const renderPath = (path: PlayerNode[], label: string, icon: React.ReactNode, dotColor: string) => (
-                  <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
-                    <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
-                      {icon}
-                      {label}
-                    </h3>
+                const renderPath = (path: PlayerNode[], label: string, _icon: React.ReactNode, dotColor: string) => (
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">{label}</p>
                     <div className="space-y-1.5 text-sm">
                       {path.map((n, i) => (
                         <div key={i} className="flex items-start gap-2">
@@ -634,10 +632,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
                       isNFL ? 'bg-blue-500' : 'bg-emerald-500',
                     )}
                     {showOptimal && solution.optimalPath.length === 0 && solution.explanation && (
-                      <div className="bg-slate-950 rounded-xl p-4 border border-slate-700">
-                        <h3 className="font-bold text-slate-200 mb-3 text-sm flex items-center gap-2">
-                          <Trophy className="w-4 h-4 text-yellow-500" /> Solution unavailable
-                        </h3>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Solution unavailable</p>
                         <p className="text-slate-300 text-sm italic">{solution.explanation}</p>
                       </div>
                     )}
@@ -652,17 +648,21 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
               })() : null}
 
               <div className="flex gap-2">
-                <button onClick={handleShare}
+                <button
+                  onClick={shareStatus === 'ready' ? handleShareSend : handleShareCapture}
                   disabled={shareStatus === 'capturing'}
                   className={`flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors ${
                     shareStatus === 'done'
                       ? 'bg-green-600 text-white'
-                      : isNFL
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : shareStatus === 'ready'
+                        ? 'bg-amber-500 text-white hover:bg-amber-600'
+                        : isNFL
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
                   }`}>
                   {shareStatus === 'capturing' ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                   shareStatus === 'done' ? 'Saved!' :
+                   shareStatus === 'ready' ? <><Share2 className="w-4 h-4" /> Send</> :
+                   shareStatus === 'done' ? 'Shared!' :
                    <><Share2 className="w-4 h-4" /> Share</>}
                 </button>
                 <button onClick={onReset}

@@ -29,7 +29,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
     : '';
 
   const targetStyle = isTarget
-    ? `border-dashed ${isNFL ? 'border-sky-500/50 bg-sky-900/20' : 'border-emerald-500/50 bg-emerald-900/20'}`
+    ? `border-dashed ${isNFL ? 'border-sky-400/70 bg-sky-900/30' : 'border-emerald-400/70 bg-emerald-900/30'}`
     : `${bgColor} ${borderColor} shadow`;
 
   return (
@@ -80,7 +80,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ node, isStart, isEnd, isTarget,
 
             {/* Career years — shown when showCareerYears is true */}
             {showCareerYears && node.careerYears && (
-              <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+              <p className="text-xs text-slate-400 leading-tight mt-0.5">
                 {node.careerYears}
               </p>
             )}

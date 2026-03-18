@@ -175,9 +175,9 @@ const MLB_FAME_THRESHOLDS: Record<Difficulty, number> = {
   Hard: 5,
 };
 const NFL_FAME_THRESHOLDS: Record<Difficulty, number> = {
-  Easy: 40,
-  Medium: 25,
-  Hard: 15,
+  Easy: 60,
+  Medium: 40,
+  Hard: 30,
 };
 
 // Position filters per difficulty (NFL only)

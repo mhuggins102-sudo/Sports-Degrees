@@ -168,7 +168,6 @@ MLB_POS_COLS = {
     "G_rf": "RF", "G_of": "OF", "G_dh": "DH",
 }
 mlb_player_positions = {}
-mlb_player_well_known = {}
 
 for pid, group in df.groupby("playerID"):
     display = mlb_id_to_name.get(pid)
@@ -189,34 +188,47 @@ for pid, group in df.groupby("playerID"):
             primary = "OF"
         mlb_player_positions[display] = primary
 
-    # Well-known threshold (era-adjusted):
-    #   Post-1990 debuts: batters ≥1250 G (~5000 PA), pitchers ≥150 GS or ≥500 G
-    #   Pre-1990 debuts: batters ≥1875 G (~7500 PA), pitchers ≥225 GS or ≥750 G
-    career_gp = int(group["G_p"].fillna(0).astype(int).sum())
-    career_gs = int(group["GS"].fillna(0).astype(int).sum())
-    career_g_all = int(group["G_all"].fillna(0).astype(int).sum())
-    is_pitcher = (career_gp > career_g_all * 0.5) if career_g_all > 0 else False
-
-    debut_yr = group["debutYear"].dropna().iloc[0] if not group["debutYear"].dropna().empty else "9999"
-    is_pre_1990 = int(str(debut_yr)[:4]) < 1990
-
-    if is_pitcher:
-        if is_pre_1990:
-            well_known = career_gs >= 225 or career_gp >= 750
-        else:
-            well_known = career_gs >= 150 or career_gp >= 500
-    else:
-        career_batting_games = career_g_all - career_gp
-        if is_pre_1990:
-            well_known = career_batting_games >= 1875  # ~7500 PA
-        else:
-            well_known = career_batting_games >= 1250  # ~5000 PA
-
-    if well_known:
-        mlb_player_well_known[display] = True
-
 print(f"   Positions assigned for {len(mlb_player_positions):,} MLB players")
-print(f"   {len(mlb_player_well_known):,} MLB players marked as well-known")
+
+# === MLB: Download WAR data from Baseball-Reference ===
+import requests, io
+
+print("   Downloading batting WAR from Baseball-Reference...")
+bat_war_url = "https://www.baseball-reference.com/data/war_daily_bat.txt"
+bat_war_resp = requests.get(bat_war_url, timeout=60)
+bat_war_df = pd.read_csv(io.StringIO(bat_war_resp.content.decode('utf-8')))
+print(f"   Downloaded {len(bat_war_df):,} batting WAR rows")
+
+print("   Downloading pitching WAR from Baseball-Reference...")
+pitch_war_url = "https://www.baseball-reference.com/data/war_daily_pitch.txt"
+pitch_war_resp = requests.get(pitch_war_url, timeout=60)
+pitch_war_df = pd.read_csv(io.StringIO(pitch_war_resp.content.decode('utf-8')))
+print(f"   Downloaded {len(pitch_war_df):,} pitching WAR rows")
+
+# Combine batting + pitching WAR by player_ID (Lahman playerID)
+# For players who both bat and pitch, sum across both tables
+all_war = pd.concat([
+    bat_war_df[['player_ID', 'year_ID', 'WAR']],
+    pitch_war_df[['player_ID', 'year_ID', 'WAR']],
+])
+career_war_by_pid = all_war.groupby('player_ID')['WAR'].sum().to_dict()
+# Also compute career midpoint year for era adjustment
+midpoint_by_pid = all_war.groupby('player_ID')['year_ID'].agg(lambda yrs: (yrs.min() + yrs.max()) / 2).to_dict()
+
+# Map Lahman playerID → display name and compute era-adjusted fame score
+# Era adjustment: subtract 0.3 WAR per year before 2000 (midpoint of career)
+# e.g. career midpoint 1970 → penalty = 0.3 * 30 = 9.0 WAR
+# This makes modern players (post-2000) have no penalty
+mlb_player_fame = {}
+for pid, display in mlb_id_to_name.items():
+    raw_war = career_war_by_pid.get(pid, 0)
+    midpoint = midpoint_by_pid.get(pid, 2000)
+    era_penalty = max(0, (2000 - midpoint) * 0.3)
+    fame = round(raw_war - era_penalty, 1)
+    if fame > 0:
+        mlb_player_fame[display] = fame
+
+print(f"   {len(mlb_player_fame):,} MLB players have positive era-adjusted WAR (fame score)")
 
 mlb_player_seasons = {}
 for pid, group in df.groupby("playerID"):
@@ -239,7 +251,7 @@ mlb_data = {
     "playerSeasons": mlb_player_seasons,
     "teamSeasons": mlb_team_seasons,
     "playerPositions": mlb_player_positions,
-    "wellKnown": mlb_well_known_list,
+    "playerFame": mlb_player_fame,
 }
 
 # === NFL: Modern data (1999-2025) via nfl_data_py ===
@@ -559,60 +571,63 @@ if hist_file.exists():
 else:
     print("⚠️  No historical_nfl_rosters.csv found — run download_historical_nfl.py first")
 
-# === NFL: Well-known player determination (honors + career length) ===
-# Tier 1: Any Pro Bowl, All-Pro, or HOF player is well-known
-# Tier 2: Long career by position (raised thresholds as fallback)
-NFL_WELL_KNOWN_YEARS = {
-    "QB": 10, "RB": 10, "FB": 10, "WR": 10, "TE": 9,
-    "LB": 9, "ILB": 9, "OLB": 9, "MLB": 9,
-    "DB": 9, "CB": 9, "S": 9, "SS": 9, "FS": 9,
-    "OL": 8, "OT": 8, "OG": 8, "C": 8, "T": 8, "G": 8,
-    "DL": 8, "DE": 8, "DT": 8, "NT": 8,
-    "K": 12, "P": 12, "SPEC": 12, "LS": 12,
-}
+# === NFL: AV-based fame scoring (replaces well-known system) ===
+# Use weighted Approximate Value (w_av) from draft picks data
+# Match to our display names via gsis_id (modern) and pfr_player_name (historical)
+print("   Computing NFL fame scores from AV data...")
 
-def _has_honors(name):
-    """Check if a player has Pro Bowl, All-Pro, or HOF honors."""
-    # Check by player_id (modern players, 1999+)
-    pid = nfl_name_to_pid.get(name)
-    if pid and pid in honors_by_gsis:
-        h = honors_by_gsis[pid]
-        if h["probowls"] >= 1 or h["allpro"] >= 1 or h["hof"]:
-            return True
-    # Check by name match (historical/drafted players)
-    # Strip disambiguation suffix: "John Smith (1990)" → "John Smith", "John Smith Jr." → "John Smith"
-    base = name
-    if " (" in base and base.endswith(")"):
-        base = base[:base.rindex(" (")]
-    for suffix in (" Sr.", " Jr."):
-        if base.endswith(suffix):
-            base = base[:-len(suffix)]
-    for candidate in [name, base]:
-        if candidate in honors_by_name:
-            h = honors_by_name[candidate]
-            if h["probowls"] >= 1 or h["allpro"] >= 1 or h["hof"]:
-                return True
-    return False
+# Build AV lookup: gsis_id → w_av AND pfr_player_name → w_av
+av_by_gsis = {}   # gsis_id → w_av
+av_by_name = {}   # pfr_player_name → w_av (for historical matching)
+try:
+    draft_df = nfl.import_draft_picks()
+    for _, row in draft_df.iterrows():
+        wav = row.get("w_av")
+        if pd.isna(wav):
+            continue
+        wav = float(wav)
+        gsis = row.get("gsis_id")
+        if pd.notna(gsis) and gsis:
+            av_by_gsis[gsis] = max(av_by_gsis.get(gsis, 0), wav)
+        pfr_name = row.get("pfr_player_name", "")
+        if pd.notna(pfr_name) and pfr_name:
+            av_by_name[pfr_name] = max(av_by_name.get(pfr_name, 0), wav)
+    print(f"   Loaded AV for {len(av_by_gsis):,} players by ID, {len(av_by_name):,} by name")
+except Exception as e:
+    print(f"   Warning: Could not load AV data: {e}")
 
-nfl_well_known = {}
-honors_count = 0
-career_count = 0
+# Compute era-adjusted fame for each NFL player
+# Era adjustment: subtract 0.5 AV per year before 2000 (career midpoint)
+nfl_player_fame = {}
 for name, seasons in nfl_player_seasons.items():
-    has_honor = _has_honors(name)
-    career_years = len(set(s["year"] for s in seasons))
-    pos = nfl_player_positions.get(name, "")
-    threshold = NFL_WELL_KNOWN_YEARS.get(pos, 9)
-    long_career = career_years >= threshold
+    years = [s["year"] for s in seasons]
+    midpoint = (min(years) + max(years)) / 2
 
-    if has_honor:
-        nfl_well_known[name] = True
-        honors_count += 1
-    elif long_career:
-        nfl_well_known[name] = True
-        career_count += 1
+    # Try to find AV by gsis_id first, then by name
+    raw_av = None
+    pid = nfl_name_to_pid.get(name)
+    if pid and pid in av_by_gsis:
+        raw_av = av_by_gsis[pid]
+    if raw_av is None:
+        # Try matching by name (strip disambiguation suffixes)
+        base = name
+        if " (" in base and base.endswith(")"):
+            base = base[:base.rindex(" (")]
+        for suffix in (" Sr.", " Jr."):
+            if base.endswith(suffix):
+                base = base[:-len(suffix)]
+        for candidate in [name, base]:
+            if candidate in av_by_name:
+                raw_av = av_by_name[candidate]
+                break
 
-nfl_well_known_list = sorted(nfl_well_known.keys())
-print(f"   {len(nfl_well_known_list):,} NFL players marked as well-known ({honors_count:,} by honors, {career_count:,} by career length)")
+    if raw_av is not None and raw_av > 0:
+        era_penalty = max(0, (2000 - midpoint) * 0.5)
+        fame = round(raw_av - era_penalty, 1)
+        if fame > 0:
+            nfl_player_fame[name] = fame
+
+print(f"   {len(nfl_player_fame):,} NFL players have positive era-adjusted AV (fame score)")
 
 # === NFL: Pre-compute challenge pairs per difficulty ===
 from collections import deque
@@ -641,40 +656,23 @@ def bfs_distance(start, target, max_depth):
                 queue.append((p, depth + 1))
     return None
 
-# Build eligible endpoints (same logic as TypeScript buildEndpointEligible)
-NFL_POS_BONUS = {"QB": 3, "RB": 2, "FB": 2, "WR": 2, "TE": 1, "LB": 1, "ILB": 1, "OLB": 1, "MLB": 1, "CB": 1}
-
-def compute_fame(name):
-    seasons = nfl_player_seasons.get(name, [])
-    career = len(set(s["year"] for s in seasons))
-    pos = nfl_player_positions.get(name, "")
-    pos_bonus = NFL_POS_BONUS.get(pos, 0)
-    teammates = set()
-    for s in seasons:
-        key = f"{s['team']}-{s['year']}"
-        for p in nfl_team_seasons.get(key, []):
-            if p != name:
-                teammates.add(p)
-    tm_bonus = min(3, len(teammates) // 50)
-    return career + pos_bonus + tm_bonus
-
-nfl_eligible_all = [p for p in nfl_player_seasons if p in nfl_well_known and compute_fame(p) >= 15]
-print(f"   {len(nfl_eligible_all):,} eligible NFL endpoints (all positions)")
-
-# Position-filtered pools per difficulty:
-# Easy: QB, RB, WR only (skill positions casual fans know)
-# Medium: + TE, K, CB, LB, S, SS, FS, ILB, OLB, MLB
-# Hard: any position
+# Position-filtered pools per difficulty with fame thresholds:
+# Easy: QB, RB, WR only — fame >= 40
+# Medium: + TE, K, CB, LB, S — fame >= 25
+# Hard: any position — fame >= 15
 EASY_POSITIONS = {"QB", "RB", "WR"}
 MEDIUM_POSITIONS = {"QB", "RB", "WR", "TE", "K", "CB", "LB", "S", "SS", "FS", "ILB", "OLB", "MLB"}
 
-nfl_eligible_easy = [p for p in nfl_eligible_all if nfl_player_positions.get(p, "") in EASY_POSITIONS]
-nfl_eligible_medium = [p for p in nfl_eligible_all if nfl_player_positions.get(p, "") in MEDIUM_POSITIONS]
-nfl_eligible_hard = nfl_eligible_all
+NFL_FAME_THRESHOLDS = {"Easy": 40, "Medium": 25, "Hard": 15}
+NFL_POS_FILTERS = {"Easy": EASY_POSITIONS, "Medium": MEDIUM_POSITIONS, "Hard": None}
 
-print(f"   Easy pool: {len(nfl_eligible_easy):,} (QB/RB/WR)")
-print(f"   Medium pool: {len(nfl_eligible_medium):,} (+ TE/K/CB/LB/S)")
-print(f"   Hard pool: {len(nfl_eligible_hard):,} (all positions)")
+nfl_eligible_easy = [p for p in nfl_player_fame if nfl_player_fame[p] >= NFL_FAME_THRESHOLDS["Easy"] and nfl_player_positions.get(p, "") in EASY_POSITIONS]
+nfl_eligible_medium = [p for p in nfl_player_fame if nfl_player_fame[p] >= NFL_FAME_THRESHOLDS["Medium"] and nfl_player_positions.get(p, "") in MEDIUM_POSITIONS]
+nfl_eligible_hard = [p for p in nfl_player_fame if nfl_player_fame[p] >= NFL_FAME_THRESHOLDS["Hard"]]
+
+print(f"   Easy pool: {len(nfl_eligible_easy):,} (QB/RB/WR, fame≥{NFL_FAME_THRESHOLDS['Easy']})")
+print(f"   Medium pool: {len(nfl_eligible_medium):,} (+ TE/K/CB/LB/S, fame≥{NFL_FAME_THRESHOLDS['Medium']})")
+print(f"   Hard pool: {len(nfl_eligible_hard):,} (all positions, fame≥{NFL_FAME_THRESHOLDS['Hard']})")
 
 random.seed(42)  # reproducible builds
 
@@ -714,7 +712,7 @@ nfl_data = {
     "playerSeasons": nfl_player_seasons,
     "teamSeasons": nfl_team_seasons,
     "playerPositions": nfl_player_positions,
-    "wellKnown": nfl_well_known_list,
+    "playerFame": nfl_player_fame,
     "challengePairs": nfl_challenge_pairs,
 }
 

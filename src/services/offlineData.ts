@@ -9,19 +9,26 @@ export interface SportData {
   playerSeasons: Record<string, Array<{ team: string; year: number }>>;
   teamSeasons: Record<string, string[]>;
   playerPositions?: Record<string, string>;
-  wellKnown?: string[]; // sorted list of well-known player names
+  wellKnown?: string[]; // legacy — sorted list of well-known player names
+  playerFame?: Record<string, number>; // era-adjusted WAR (MLB) or AV (NFL)
   challengePairs?: Record<string, Array<[string, string, number]>>; // pre-computed pairs per difficulty
 }
 
-const mlbData: SportData = mlbDataRaw as SportData;
-const nflData: SportData = nflDataRaw as SportData;
+const mlbData: SportData = mlbDataRaw as unknown as SportData;
+const nflData: SportData = nflDataRaw as unknown as SportData;
 
 const getData = (mode: GameMode): SportData =>
   mode === GameMode.MLB ? mlbData : nflData;
 
 // Pre-compute well-known sets for O(1) lookup
-const mlbWellKnownSet = new Set(mlbData.wellKnown ?? []);
-const nflWellKnownSet = new Set(nflData.wellKnown ?? []);
+// A player is "well-known" if they have a positive fame score (era-adjusted WAR/AV)
+// Falls back to legacy wellKnown list if playerFame is not available
+const buildWellKnownSet = (data: SportData): Set<string> => {
+  if (data.playerFame) return new Set(Object.keys(data.playerFame));
+  return new Set(data.wellKnown ?? []);
+};
+const mlbWellKnownSet = buildWellKnownSet(mlbData);
+const nflWellKnownSet = buildWellKnownSet(nflData);
 const getWellKnownSet = (mode: GameMode): Set<string> =>
   mode === GameMode.MLB ? mlbWellKnownSet : nflWellKnownSet;
 
@@ -155,78 +162,72 @@ export const findShortestPath = (
 
 // ── Fame scoring & difficulty-aware player generation ─────────────────────
 
-// Position bonuses for NFL fame score (QBs most recognizable, then skill positions)
-const POSITION_BONUS: Record<string, number> = {
-  QB: 3, RB: 2, FB: 2, WR: 2, TE: 1, LB: 1, ILB: 1, OLB: 1, MLB: 1, CB: 1,
-};
-
-// Returns the set of unique years a player was active
-const careerYears = (data: SportData, player: string): Set<number> =>
-  new Set((data.playerSeasons[player] ?? []).map(s => s.year));
-
-// Compute fame score for a player: careerLength + positionBonus + teammateBonus
-const computeFameScore = (data: SportData, player: string): number => {
-  const seasons = data.playerSeasons[player] ?? [];
-  if (seasons.length === 0) return 0;
-
-  const career = careerYears(data, player).size;
-
-  // Position bonus (NFL only)
-  const pos = data.playerPositions?.[player] ?? '';
-  const posBonus = POSITION_BONUS[pos] ?? 0;
-
-  // Teammate bonus: unique teammates / 50, capped at 3
-  const teammates = new Set<string>();
-  for (const s of seasons) {
-    const key = `${s.team}-${s.year}`;
-    (data.teamSeasons[key] ?? []).forEach(p => {
-      if (p !== player) teammates.add(p);
-    });
-  }
-  const teammateBonus = Math.min(3, Math.floor(teammates.size / 50));
-
-  return career + posBonus + teammateBonus;
-};
-
-// Pre-computed fame scores per mode (lazily initialized)
-const fameScoreCache = new Map<GameMode, Map<string, number>>();
-
-const getFameScores = (mode: GameMode): Map<string, number> => {
-  if (fameScoreCache.has(mode)) return fameScoreCache.get(mode)!;
-  const data = getData(mode);
-  const scores = new Map<string, number>();
-  for (const player of data.players) {
-    scores.set(player, computeFameScore(data, player));
-  }
-  fameScoreCache.set(mode, scores);
-  return scores;
-};
-
-// Start/target players must be household names: always use the well-known pool
-// and a high fame threshold. Difficulty only controls the degree range.
-const ENDPOINT_FAME_THRESHOLD: Record<GameMode, number> = {
-  [GameMode.NFL]: 15,
-  [GameMode.MLB]: 12,
-};
-
 const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
   Easy: [2, 3],
   Medium: [3, 5],
   Hard: [4, 7],
 };
 
-// Builds the eligible endpoint list: must be well-known AND have high fame score
-// Cached per mode to avoid recomputing on every challenge generation.
-const eligibleCache = new Map<GameMode, string[]>();
-const buildEndpointEligible = (mode: GameMode): string[] => {
-  if (eligibleCache.has(mode)) return eligibleCache.get(mode)!;
-  const scores = getFameScores(mode);
-  const threshold = ENDPOINT_FAME_THRESHOLD[mode];
-  const wkSet = getWellKnownSet(mode);
-  const result = getData(mode).players.filter(p =>
-    wkSet.has(p) && (scores.get(p) ?? 0) >= threshold
-  );
-  eligibleCache.set(mode, result);
+// Fame thresholds per difficulty per mode (era-adjusted WAR for MLB, AV for NFL)
+const MLB_FAME_THRESHOLDS: Record<Difficulty, number> = {
+  Easy: 30,
+  Medium: 15,
+  Hard: 5,
+};
+const NFL_FAME_THRESHOLDS: Record<Difficulty, number> = {
+  Easy: 40,
+  Medium: 25,
+  Hard: 15,
+};
+
+// Position filters per difficulty (NFL only)
+const EASY_POSITIONS = new Set(['QB', 'RB', 'WR']);
+const MEDIUM_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K', 'CB', 'LB', 'S', 'SS', 'FS', 'ILB', 'OLB', 'MLB']);
+
+// Builds the eligible endpoint list for a given difficulty.
+// Cached per (mode, difficulty) to avoid recomputing.
+const eligibleCache = new Map<string, string[]>();
+const buildEndpointEligible = (mode: GameMode, difficulty: Difficulty = 'Easy'): string[] => {
+  const key = `${mode}-${difficulty}`;
+  if (eligibleCache.has(key)) return eligibleCache.get(key)!;
+
+  const data = getData(mode);
+  const fame = data.playerFame ?? {};
+  const threshold = mode === GameMode.MLB
+    ? MLB_FAME_THRESHOLDS[difficulty]
+    : NFL_FAME_THRESHOLDS[difficulty];
+
+  let result: string[];
+
+  if (mode === GameMode.MLB) {
+    result = data.players.filter(p => {
+      const f = fame[p];
+      if (!f || f < threshold) return false;
+      // Easy: restrict to players active 1990+
+      if (difficulty === 'Easy') {
+        const seasons = data.playerSeasons[p] ?? [];
+        const hasModernSeason = seasons.some(s => s.year >= 1990);
+        if (!hasModernSeason) return false;
+      }
+      return true;
+    });
+  } else {
+    // NFL: position filters per difficulty
+    const posFilter = difficulty === 'Easy' ? EASY_POSITIONS
+      : difficulty === 'Medium' ? MEDIUM_POSITIONS
+      : null;
+    result = data.players.filter(p => {
+      const f = fame[p];
+      if (!f || f < threshold) return false;
+      if (posFilter) {
+        const pos = data.playerPositions?.[p] ?? '';
+        if (!posFilter.has(pos)) return false;
+      }
+      return true;
+    });
+  }
+
+  eligibleCache.set(key, result);
   return result;
 };
 
@@ -286,7 +287,7 @@ export const getRandomPlayers = (
   }
 
   // Fallback to BFS-based generation (for MLB or if no pairs available)
-  const eligible = buildEndpointEligible(mode);
+  const eligible = buildEndpointEligible(mode, difficulty);
   if (eligible.length < 2) return null;
 
   const [minDeg, maxDeg] = DEGREE_RANGE[difficulty];

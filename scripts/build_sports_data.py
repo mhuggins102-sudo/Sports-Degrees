@@ -660,7 +660,7 @@ def bfs_distance(start, target, max_depth):
 EASY_POSITIONS = {"QB", "RB", "WR"}
 MEDIUM_POSITIONS = {"QB", "RB", "WR", "TE", "K", "CB", "LB", "S", "SS", "FS", "ILB", "OLB", "MLB"}
 
-NFL_FAME_THRESHOLDS = {"Easy": 60, "Medium": 40, "Hard": 30}
+NFL_FAME_THRESHOLDS = {"Easy": 60, "Medium": 50, "Hard": 40}
 NFL_POS_FILTERS = {"Easy": EASY_POSITIONS, "Medium": MEDIUM_POSITIONS, "Hard": None}
 
 nfl_eligible_easy = [p for p in nfl_player_fame if nfl_player_fame[p] >= NFL_FAME_THRESHOLDS["Easy"] and nfl_player_positions.get(p, "") in EASY_POSITIONS]

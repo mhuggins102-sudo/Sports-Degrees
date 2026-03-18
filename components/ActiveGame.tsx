@@ -73,8 +73,8 @@ function computeScore(
   const extraSteps = Math.max(0, userDegrees - bestDegrees);
   const hintPenalty = userDegrees > 0 ? Math.round(hintsUsed * (70 / userDegrees)) : 0;
   const stepPenalty = extraSteps * 5;
-  const wrongPenalty = incorrectGuesses * 3;
-  const viewPenalty = uniqueCardViews * 2;
+  const wrongPenalty = incorrectGuesses * 5;
+  const viewPenalty = uniqueCardViews * 5;
   const total = Math.max(0, 100 - hintPenalty - stepPenalty - wrongPenalty - viewPenalty);
 
   return { total, extraSteps, hintsUsed, incorrectGuesses, uniqueCardViews, hintPenalty, stepPenalty, wrongPenalty, viewPenalty };
@@ -114,7 +114,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Share: pre-captured image file
-  const shareChainRef = useRef<HTMLDivElement>(null);
+  const chainContentRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [shareFile, setShareFile] = useState<File | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'done'>('idle');
 
@@ -147,12 +148,53 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
   // Pre-capture share image when user wins (not surrender)
   useEffect(() => {
-    if (!won || surrendered || !shareChainRef.current) return;
+    if (!won || surrendered || !chainContentRef.current) return;
     const capture = async () => {
       try {
-        const el = shareChainRef.current;
-        if (!el) return;
-        const canvas = await html2canvas(el, { backgroundColor: '#020617', scale: 2 });
+        const chainEl = chainContentRef.current;
+        if (!chainEl) return;
+
+        // Build an offscreen wrapper: branding header + cloned chain + footer
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:440px;';
+        wrapper.className = 'bg-slate-950';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = `px-5 py-2.5 text-center border-t-2 ${
+          isNFL
+            ? 'bg-gradient-to-b from-sky-900/80 via-slate-900 to-slate-950 border-sky-500'
+            : 'bg-gradient-to-b from-emerald-900/80 via-slate-900 to-slate-950 border-emerald-500'
+        }`;
+        header.innerHTML = `
+          <h2 class="text-lg font-bold ${isNFL ? 'text-sky-400' : 'text-emerald-400'}">Sports Degrees</h2>
+          <p class="opacity-90 text-sm text-slate-300">${startPlayer} → ${targetPlayer}</p>
+          <p class="text-xl font-black text-white">${userDegrees} degree${userDegrees !== 1 ? 's' : ''}</p>
+        `;
+        wrapper.appendChild(header);
+
+        // Clone the visible chain content
+        const cloned = chainEl.cloneNode(true) as HTMLElement;
+        // Remove the bottomRef spacer div (last child)
+        if (cloned.lastElementChild && !(cloned.lastElementChild as HTMLElement).className) {
+          cloned.removeChild(cloned.lastElementChild);
+        }
+        const chainWrap = document.createElement('div');
+        chainWrap.className = 'px-4 py-4';
+        chainWrap.appendChild(cloned);
+        wrapper.appendChild(chainWrap);
+
+        // Footer
+        const footer = document.createElement('p');
+        footer.className = 'text-center text-[10px] text-slate-500 pb-3';
+        footer.textContent = 'sportsdegrees.netlify.app';
+        wrapper.appendChild(footer);
+
+        document.body.appendChild(wrapper);
+
+        const canvas = await html2canvas(wrapper, { backgroundColor: '#020617', scale: 2 });
+        document.body.removeChild(wrapper);
+
         canvas.toBlob(blob => {
           if (blob) {
             setShareFile(new File([blob], 'sports-degrees.png', { type: 'image/png' }));
@@ -203,6 +245,8 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
     } else {
       setError(result.reason ?? 'Invalid connection.');
       setIncorrectGuesses(g => g + 1);
+      setGuess('');
+      inputRef.current?.blur();
     }
 
     setLoading(false);
@@ -449,7 +493,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
 
       {/* ── Scrollable card area ── */}
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col justify-end">
-        <div>
+        <div ref={chainContentRef}>
           {chain.map((node, idx) => (
             <PlayerCard
               key={node.id}
@@ -512,6 +556,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
             <form onSubmit={handleFormSubmit}>
               <div className="flex gap-2">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={guess}
                   onChange={handleInputChange}
@@ -621,43 +666,6 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
       {/* ── Win / Surrender modal ── */}
       {won && (
         <>
-          {/* Offscreen share capture — visual PlayerCards chain (only on actual win) */}
-          {userCompleted && (
-            <div
-              ref={shareChainRef}
-              style={{ position: 'fixed', left: '-9999px', top: 0, width: '440px' }}
-              className="bg-slate-950"
-            >
-              <div className={`px-5 py-2.5 text-center border-t-2 ${
-                isNFL
-                  ? 'bg-gradient-to-b from-sky-900/80 via-slate-900 to-slate-950 border-sky-500'
-                  : 'bg-gradient-to-b from-emerald-900/80 via-slate-900 to-slate-950 border-emerald-500'
-              }`}>
-                <h2 className={`text-lg font-bold ${isNFL ? 'text-sky-400' : 'text-emerald-400'}`}>Sports Degrees</h2>
-                <p className="opacity-90 text-sm text-slate-300">
-                  {startPlayer} → {targetPlayer}
-                </p>
-                <p className="text-xl font-black text-white">
-                  {userDegrees} degree{userDegrees !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <div className="px-5 pt-1 pb-2 flex flex-col items-center">
-                {chain.map((node, idx) => (
-                  <PlayerCard
-                    key={`share-${node.id}`}
-                    node={node}
-                    index={idx}
-                    mode={mode}
-                    isStart={idx === 0}
-                    isTarget={node.name === targetPlayer}
-                    showCareerYears={true}
-                  />
-                ))}
-              </div>
-              <p className="text-center text-[10px] text-slate-500 pb-3">sportsdegrees.netlify.app</p>
-            </div>
-          )}
-
           {/* Visible modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
             <div className="bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-700 flex flex-col max-h-[85vh]">

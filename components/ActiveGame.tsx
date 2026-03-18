@@ -155,16 +155,19 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         if (!chainEl) return;
 
         // Build an offscreen wrapper: branding header + cloned chain + footer
+        // Match the chain container's actual rendered width so cards look identical
+        const chainWidth = chainEl.offsetWidth;
+        const wrapperPx = chainWidth + 32; // 32px = px-4 padding on each side
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:440px;';
+        wrapper.style.cssText = `position:fixed;left:-9999px;top:0;width:${Math.max(wrapperPx, 360)}px;`;
         wrapper.className = 'bg-slate-950';
 
         // Header
         const header = document.createElement('div');
-        header.className = `px-5 py-2.5 text-center border-t-2 ${
+        header.className = `px-5 py-2.5 text-center ${
           isNFL
-            ? 'bg-gradient-to-b from-sky-900/80 via-slate-900 to-slate-950 border-sky-500'
-            : 'bg-gradient-to-b from-emerald-900/80 via-slate-900 to-slate-950 border-emerald-500'
+            ? 'bg-gradient-to-b from-sky-900/80 via-slate-900 to-slate-950'
+            : 'bg-gradient-to-b from-emerald-900/80 via-slate-900 to-slate-950'
         }`;
         header.innerHTML = `
           <h2 class="text-lg font-bold ${isNFL ? 'text-sky-400' : 'text-emerald-400'}">Sports Degrees</h2>

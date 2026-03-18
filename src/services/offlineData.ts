@@ -171,13 +171,13 @@ const DEGREE_RANGE: Record<Difficulty, [number, number]> = {
 // Fame thresholds per difficulty per mode (era-adjusted WAR for MLB, AV for NFL)
 const MLB_FAME_THRESHOLDS: Record<Difficulty, number> = {
   Easy: 30,
-  Medium: 15,
-  Hard: 5,
+  Medium: 30,
+  Hard: 30,
 };
 const NFL_FAME_THRESHOLDS: Record<Difficulty, number> = {
   Easy: 60,
-  Medium: 40,
-  Hard: 30,
+  Medium: 50,
+  Hard: 40,
 };
 
 // Position filters per difficulty (NFL only)

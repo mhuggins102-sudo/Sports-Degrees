@@ -243,9 +243,6 @@ for (team, year), group in df.groupby(["teamID", "yearID"]):
     key = f"{team}-{int(year)}"
     mlb_team_seasons[key] = sorted(set(group["displayName"].tolist()))
 
-# Build well-known player list (sorted names)
-mlb_well_known_list = sorted(mlb_player_well_known.keys())
-
 mlb_data = {
     "players": sorted(mlb_player_seasons.keys()),
     "playerSeasons": mlb_player_seasons,

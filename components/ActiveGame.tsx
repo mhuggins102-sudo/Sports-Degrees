@@ -184,6 +184,7 @@ const ActiveGame: React.FC<ActiveGameProps> = ({ mode, difficulty, startPlayer, 
         }
         const chainWrap = document.createElement('div');
         chainWrap.className = 'px-4 py-4';
+        chainWrap.style.marginTop = '-3px';
         chainWrap.appendChild(cloned);
         wrapper.appendChild(chainWrap);
 
